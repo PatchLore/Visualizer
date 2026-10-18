@@ -1,0 +1,5 @@
+.env
+.dev.vars
+Music/
+test-assets/
+node_modules/
