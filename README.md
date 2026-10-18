@@ -6,7 +6,7 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
   1,000-character limit, artist names translated into sound), an Exclude list, Weirdness / Style influence /
   Variety settings, lyrics with structure tags, three titles, a scene-by-scene video plan (palette, art style,
   image prompts tied to the lyrics), a YouTube kit and notes explaining the choices. Any result can be rewritten
-  with a chip or a sentence. Written by Claude through `functions/api/compose.js`.
+  with a chip or a sentence. Written by Claude; the engine is `api/_lib/compose.js`.
 - **Two visualisers** that run entirely in the browser and export full-length MP4s. Audio and images stay on the
   user's computer. "Make the video" in the Studio opens the right one with the title, artist and colour set.
   - **AetherFlux** (`aetherflux.html`): a 3D particle galaxy (three.js) that morphs between seven shapes, a
@@ -36,7 +36,8 @@ files directly won't export.
 ### Vercel (current)
 
 The repo deploys to Vercel as a static site plus one function: `api/compose.js`, which wraps the engine in
-`functions/api/compose.js` (`vercel.json` gives it up to 60 seconds). No build step.
+`api/_lib/compose.js` (`vercel.json` gives it up to 60 seconds). Vercel never serves `api/` as static files, so
+the prompt stays private. No build step.
 
 In the Vercel project, under Settings → Environment Variables, add:
 
@@ -50,7 +51,7 @@ Redeploy after changing variables.
 ### Cloudflare Pages (alternative)
 
 Create a Pages project from the repo (no build command, output directory `/`); Cloudflare runs
-`functions/api/compose.js` directly. Add the same variables under Settings → Variables and Secrets. Binding a KV
+`functions/api/compose.js`, which re-exports the same engine. Add the same variables under Settings → Variables and Secrets. Binding a KV
 namespace as `QUOTA` turns on a free daily limit per visitor (`FREE_DAILY_LIMIT`, default 5).
 
 `test-assets/`, `Music/`, `.env` and `node_modules/` are git-ignored and never deployed.

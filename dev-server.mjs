@@ -30,7 +30,7 @@ const TYPES = {
     '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.wav': 'audio/wav',
     '.ico': 'image/x-icon', '.md': 'text/plain; charset=utf-8',
 };
-const PRIVATE = /(^|\/)(\.|functions\/|dev-server\.mjs)/;   // never served as files
+const PRIVATE = /(^|\/)(\.|functions\/|api\/|node_modules\/|dev-server\.mjs|package(-lock)?\.json)/;   // never served as files
 
 async function handleFunction(req, res, name) {
     const file = path.join(root, 'functions', 'api', `${name}.js`);
