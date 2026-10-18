@@ -1,0 +1,88 @@
+# Music Visualiser
+
+Describe the music you imagine, get a Suno-ready package, then turn the finished track into a visualiser video.
+
+- **Song Studio** (`index.html`): a plain-words description becomes a Suno style prompt (checked against the
+  1,000-character limit, artist names translated into sound), an Exclude list, Weirdness / Style influence /
+  Variety settings, lyrics with structure tags, three titles, a scene-by-scene video plan (palette, art style,
+  image prompts tied to the lyrics), a YouTube kit and notes explaining the choices. Any result can be rewritten
+  with a chip or a sentence. Written by Claude through `functions/api/compose.js`.
+- **Two visualisers** that run entirely in the browser and export full-length MP4s. Audio and images stay on the
+  user's computer. "Make the video" in the Studio opens the right one with the title, artist and colour set.
+  - **AetherFlux** (`aetherflux.html`): a 3D particle galaxy (three.js) that morphs between seven shapes, a
+    beat-reactive centre with a logo, a classic spectrum, and a scene timeline.
+  - **Monstercat** (`monstercat.html`): Monstercat-style spectrum bars, bass-driven particles, logo and
+    artist/title (under the bars or top left), and background scenes that crossfade during the song.
+
+## Run it locally
+
+```bash
+npm install
+```
+
+Put your Anthropic API key in `.env` (`ANTHROPIC_API_KEY=...`; the file is git-ignored), then:
+
+```bash
+npm run dev
+```
+
+and open http://127.0.0.1:4330. The dev server serves the site and runs `functions/api/*.js` the way Cloudflare
+Pages does. Optional settings in `.env`: `AI_MODEL` (default `claude-opus-5-5`) and `AI_EFFORT` (`low` by default,
+about 30 seconds per song; `medium` is about a minute). WebCodecs needs `localhost` or HTTPS, so opening the HTML
+files directly won't export.
+
+## Deploy
+
+### Vercel (current)
+
+The repo deploys to Vercel as a static site plus one function: `api/compose.js`, which wraps the engine in
+`functions/api/compose.js` (`vercel.json` gives it up to 60 seconds). No build step.
+
+In the Vercel project, under Settings → Environment Variables, add:
+
+- `ANTHROPIC_API_KEY` (required)
+- `STUDIO_ACCESS_CODE` (recommended until payments exist): the Studio asks for this code once per browser, so
+  strangers who find the URL can't spend your key
+- `AI_MODEL` / `AI_EFFORT` if you change them
+
+Redeploy after changing variables.
+
+### Cloudflare Pages (alternative)
+
+Create a Pages project from the repo (no build command, output directory `/`); Cloudflare runs
+`functions/api/compose.js` directly. Add the same variables under Settings → Variables and Secrets. Binding a KV
+namespace as `QUOTA` turns on a free daily limit per visitor (`FREE_DAILY_LIMIT`, default 5).
+
+`test-assets/`, `Music/`, `.env` and `node_modules/` are git-ignored and never deployed.
+
+## How export works
+
+`js/export.js` loads the visualiser again in a hidden iframe sized exactly 1920x1080 (or 1080x1920 for Shorts), so
+the page draws as it would full screen at that size. The page analyses the track offline (`__setupExport`) and
+draws each frame on request (`__renderExportFrame`), so the video is frame-accurate however slow the computer is.
+Frames are encoded with WebCodecs (H.264, falling back to VP9) and the audio with AAC (falling back to Opus), then
+muxed into an MP4 with [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) (loaded from jsDelivr, pinned to 5.2.2).
+
+In Chrome and Edge the MP4 streams straight to a file the user picks, so long tracks don't fill memory. Other
+browsers build the file in memory and download it.
+
+Expect roughly 2x the track length for Monstercat and 3x for AetherFlux on a typical laptop.
+
+## Browser support
+
+| Browser | Export |
+|---|---|
+| Chrome, Edge (desktop) | H.264, with AAC audio where the system provides an AAC encoder (Windows, macOS), otherwise Opus; streamed to disk |
+| Firefox | Expected to work in memory with Opus audio; not tested |
+| Safari 16.4+ | Not tested |
+| Phones | Live view only; exporting is not supported |
+
+Tested so far in a Chromium-based browser on Windows (H.264 + Opus, in-memory path).
+
+## Origin
+
+Split out of the RemotionVideo studio, where the same pages export through a server (headless Chrome + ffmpeg).
+The two copies are now separate; changes to one aren't copied to the other.
+
+Third-party code: three.js r128 and the Tailwind Play CDN build are in `vendor/`. The Monstercat style follows the
+approach in caseif/vis.js (reimplemented). Not affiliated with Monstercat.

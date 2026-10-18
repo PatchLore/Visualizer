@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Visualiser Studio</title>
+    <meta name="description" content="Describe the music you imagine. Get a Suno-ready style prompt, lyrics and a video plan, then turn your finished track into a visualiser video. Free, in your browser.">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/studio.css">
+</head>
+<body>
+<header class="top">
+    <a class="brand" href="index.html"><span class="mark"></span>Music Visualiser</a>
+    <nav>
+        <a href="monstercat.html">Monstercat</a>
+        <a href="aetherflux.html">AetherFlux</a>
+    </nav>
+</header>
+
+<main>
+    <section class="hero">
+        <h1>Describe the music you imagine.</h1>
+        <p class="lead">Get a Suno-ready prompt, lyrics and a scene-by-scene video plan. When your track is made, turn it into a visualiser video, right here in your browser.</p>
+    </section>
+
+    <form id="compose" class="card composer" autocomplete="off">
+        <label class="idea">
+            <span class="sr">Song description</span>
+            <textarea id="description" rows="4" maxlength="2000" placeholder="A late-night R&B song about leaving someone you still love. Rainy city, slow and sensual, a breathy female voice…"></textarea>
+        </label>
+        <div class="examples" id="examples" aria-label="Examples"></div>
+
+        <div class="controls">
+            <div class="field">
+                <span class="label">Vocals</span>
+                <div class="seg" data-name="vocal">
+                    <button type="button" data-value="auto" class="on">Auto</button>
+                    <button type="button" data-value="female">Female</button>
+                    <button type="button" data-value="male">Male</button>
+                    <button type="button" data-value="duet">Duet</button>
+                    <button type="button" data-value="instrumental">Instrumental</button>
+                </div>
+            </div>
+            <div class="field">
+                <span class="label">Lyrics</span>
+                <div class="seg" data-name="lyricsMode">
+                    <button type="button" data-value="write" class="on">Write them</button>
+                    <button type="button" data-value="mine">Use mine</button>
+                </div>
+            </div>
+            <div class="field">
+                <span class="label">Made for</span>
+                <div class="seg" data-name="target">
+                    <button type="button" data-value="suno-v6" class="on">Suno v6</button>
+                    <button type="button" data-value="suno-v5">Suno v5</button>
+                    <button type="button" data-value="other">Udio / other</button>
+                </div>
+            </div>
+        </div>
+
+        <label class="mine" id="mine-wrap" hidden>
+            <span class="label">Your lyrics</span>
+            <textarea id="my-lyrics" rows="8" maxlength="5000" placeholder="Paste your lyrics. Your words are kept; structure tags are added."></textarea>
+        </label>
+
+        <details class="fine">
+            <summary>Fine-tune <span>optional</span></summary>
+            <div class="fine-grid">
+                <label><span class="label">Genres (up to 3)</span><input id="genres" type="text" list="genre-list" placeholder="R&B, neo-soul"></label>
+                <label><span class="label">Mood</span><input id="mood" type="text" list="mood-list" placeholder="Bittersweet"></label>
+                <label><span class="label">Era or influence</span><input id="era" type="text" placeholder="Late-90s, or 'like a film noir'"></label>
+                <label><span class="label">Language</span>
+                    <select id="language">
+                        <option>English</option><option>Spanish</option><option>French</option><option>German</option><option>Portuguese</option>
+                        <option>Italian</option><option>Dutch</option><option>Japanese</option><option>Korean</option><option>Hindi</option><option>Arabic</option>
+                    </select>
+                </label>
+                <div class="field"><span class="label">Energy</span>
+                    <div class="seg" data-name="energy">
+                        <button type="button" data-value="auto" class="on">Auto</button>
+                        <button type="button" data-value="low">Low</button>
+                        <button type="button" data-value="medium">Medium</button>
+                        <button type="button" data-value="high">High</button>
+                    </div>
+                </div>
+                <div class="field"><span class="label">Length</span>
+                    <div class="seg" data-name="length">
+                        <button type="button" data-value="full" class="on">Full song</button>
+                        <button type="button" data-value="short">Short (TikTok)</button>
+                    </div>
+                </div>
+                <label><span class="label">Artist name (for the video and YouTube text)</span><input id="artist" type="text" maxlength="80" placeholder="Your artist name"></label>
+            </div>
+        </details>
+
+        <div class="go">
+            <button type="submit" id="generate" class="primary">Write my song prompt</button>
+            <span id="progress" class="hint" aria-live="polite"></span>
+            <span id="quota" class="hint"></span>
+        </div>
+        <div id="error" class="error" role="alert" hidden></div>
+    </form>
+
+    <section id="results" hidden aria-live="polite">
+        <div class="titles-row">
+            <span class="label">Title</span>
+            <div id="titles" class="chips"></div>
+        </div>
+
+        <div class="grid two">
+            <article class="card out">
+                <header><h2>Style of Music</h2><span class="count" id="style-count"></span><button class="copy" data-copy="style">Copy</button></header>
+                <p id="style" class="mono box"></p>
+            </article>
+            <div class="stack">
+                <article class="card out">
+                    <header><h2>Exclude Styles</h2><button class="copy" data-copy="exclude">Copy</button></header>
+                    <p id="exclude" class="mono box small"></p>
+                </article>
+                <article class="card out">
+                    <header><h2>Settings</h2></header>
+                    <div id="settings" class="settings"></div>
+                    <p id="settings-why" class="hint"></p>
+                </article>
+            </div>
+        </div>
+
+        <article class="card out">
+            <header><h2>Lyrics</h2><span class="count" id="lyrics-count"></span><button class="copy" data-copy="lyrics">Copy</button></header>
+            <pre id="lyrics" class="lyrics"></pre>
+        </article>
+
+        <div class="card refine">
+            <span class="label">Change something</span>
+            <div class="chips" id="refine-chips"></div>
+            <form id="refine-form" class="refine-row">
+                <input id="refine-text" type="text" maxlength="500" placeholder="e.g. make the chorus catchier, set it in winter, add a sax solo">
+                <button type="submit" class="primary small">Rewrite</button>
+            </form>
+        </div>
+
+        <div id="warnings" class="warnings" hidden></div>
+        <article class="card notes" id="notes-card" hidden>
+            <h2>Why these choices</h2>
+            <ul id="notes"></ul>
+        </article>
+
+        <article class="card plan">
+            <header>
+                <h2>Video plan</h2>
+                <div class="swatches" id="swatches"></div>
+            </header>
+            <p class="hint" id="plan-summary"></p>
+            <ol id="scenes" class="scenes"></ol>
+            <div class="plan-actions">
+                <button class="copy" data-copy="scenes">Copy all scene prompts</button>
+                <a id="make-video" class="primary as-button" href="monstercat.html?from=studio">Made the track? Make the video →</a>
+            </div>
+        </article>
+
+        <article class="card yt">
+            <header><h2>YouTube kit</h2></header>
+            <div class="yt-row"><span class="label">Title</span><p id="yt-title"></p><button class="copy" data-copy="ytTitle">Copy</button></div>
+            <div class="yt-row"><span class="label">Description</span><p id="yt-description" class="pre"></p><button class="copy" data-copy="ytDescription">Copy</button></div>
+            <div class="yt-row"><span class="label">Tags</span><p id="yt-tags" class="mono small"></p><button class="copy" data-copy="ytTags">Copy</button></div>
+        </article>
+    </section>
+
+    <section class="history" id="history-wrap" hidden>
+        <h2>Recent</h2>
+        <div id="history" class="history-list"></div>
+    </section>
+
+    <section class="visualisers">
+        <h2>Already have a track?</h2>
+        <p class="lead small">Go straight to the video. Load your song, add backgrounds and your logo, export a full-length MP4.</p>
+        <div class="grid two">
+            <a class="card vis aether" href="aetherflux.html">
+                <div class="preview"><div class="ring two"></div><div class="ring"></div></div>
+                <h3>AetherFlux</h3>
+                <p>A 3D particle galaxy that morphs between seven shapes, with a beat-reactive centre for your logo.</p>
+            </a>
+            <a class="card vis monster" href="monstercat.html">
+                <div class="preview" id="bars"></div>
+                <h3>Monstercat</h3>
+                <p>Spectrum bars and rushing particles, your logo and name, and background scenes that crossfade with the song.</p>
+            </a>
+        </div>
+    </section>
+
+    <footer>
+        <p>Your audio and images never leave your computer. Prompts are written by AI and checked against Suno's limits; always listen before you publish.</p>
+        <p>Monstercat style after caseif/vis.js (reimplemented). Not affiliated with Suno, Udio or Monstercat.</p>
+    </footer>
+</main>
+
+<datalist id="genre-list">
+    <option>Pop</option><option>R&amp;B</option><option>Neo-soul</option><option>Hip-hop</option><option>Trap</option><option>Lo-fi hip-hop</option>
+    <option>Synthwave</option><option>Synth-pop</option><option>House</option><option>Deep house</option><option>Progressive trance</option><option>Drum and bass</option>
+    <option>Techno</option><option>Ambient</option><option>Cinematic</option><option>Indie folk</option><option>Indie rock</option><option>Alt-rock</option>
+    <option>Pop punk</option><option>Metal</option><option>Country</option><option>Americana</option><option>Jazz</option><option>Blues</option>
+    <option>Soul</option><option>Funk</option><option>Disco</option><option>Afrobeats</option><option>Amapiano</option><option>Reggaeton</option>
+    <option>K-pop</option><option>Phonk</option><option>Gospel</option><option>Orchestral</option><option>Chillout</option><option>Trip-hop</option>
+</datalist>
+<datalist id="mood-list">
+    <option>Bittersweet</option><option>Euphoric</option><option>Melancholic</option><option>Hopeful</option><option>Dark</option><option>Romantic</option>
+    <option>Defiant</option><option>Nostalgic</option><option>Dreamy</option><option>Angry</option><option>Peaceful</option><option>Haunting</option>
+    <option>Playful</option><option>Sensual</option><option>Triumphant</option><option>Lonely</option>
+</datalist>
+
+<script src="js/studio.js"></script>
+</body>
+</html>

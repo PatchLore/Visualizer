@@ -1,0 +1,12 @@
+{
+  "name": "music-visualiser",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node dev-server.mjs 4330"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
+    "zod": "^4.6.7"
+  }
+}

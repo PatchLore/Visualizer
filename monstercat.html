@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monstercat Visualiser</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
+    <script src="js/export.js"></script>
+    <style>
+        :root { --accent: #ff2d55; }
+        body { margin: 0; overflow: hidden; background: #05060a; color: #eef0f6; font-family: 'Montserrat', 'Segoe UI', sans-serif; }
+        #stage { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+        #ui {
+            position: fixed; top: 14px; left: 14px; z-index: 5; width: 290px; max-height: calc(100vh - 28px); overflow-y: auto;
+            display: flex; flex-direction: column; gap: 9px; padding: 14px; font-size: 12px; border-radius: 14px;
+            background: rgba(10, 12, 20, 0.84); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(12px);
+        }
+        #ui h1 { margin: 0; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; }
+        #ui a { color: #9aa3b8; text-decoration: none; font-size: 11px; }
+        #ui a:hover { color: #fff; }
+        #ui label { display: flex; flex-direction: column; gap: 4px; color: #9aa3b8; }
+        #ui input[type=text], #ui select { background: #0b0e17; color: #fff; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 6px 8px; font: inherit; }
+        #ui .row { display: flex; gap: 6px; }
+        #ui button { flex: 1; background: rgba(255,255,255,0.06); color: #fff; border: 1px solid rgba(255,255,255,0.14); border-radius: 8px; padding: 7px 8px; font: inherit; cursor: pointer; }
+        #ui button:hover { background: rgba(255,255,255,0.14); }
+        #ui button.primary { background: var(--accent); border-color: transparent; font-weight: 600; }
+        #ui input[type=range] { width: 100%; accent-color: var(--accent); }
+        #status { color: #cfd5e4; min-height: 16px; word-break: break-word; }
+        #status a { color: #7ef0a4; }
+        .hint { color: #6b7388; font-size: 10.5px; }
+        #ui .check { flex-direction: row; align-items: center; gap: 8px; color: #cfd5e4; }
+        #ui .section { margin-top: 4px; padding-top: 9px; border-top: 1px solid rgba(255,255,255,0.08); color: #6b7388; font-size: 10.5px; letter-spacing: 1.5px; text-transform: uppercase; }
+        #track-name { color: #cfd5e4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #seek-row { display: flex; align-items: center; gap: 8px; color: #9aa3b8; font-size: 11px; font-variant-numeric: tabular-nums; }
+        #scene-list { display: flex; flex-direction: column; gap: 5px; }
+        .scene-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 8px; background: #0b0e17; border: 1px solid rgba(255,255,255,0.1); }
+        .scene-row .thumb { width: 38px; height: 22px; border-radius: 4px; background: #1a1f2e center/cover; flex-shrink: 0; }
+        .scene-row .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .scene-row span { flex: 1; color: #cfd5e4; font-variant-numeric: tabular-nums; }
+        .scene-row button { flex: 0 0 auto !important; padding: 0 6px !important; border: 0 !important; background: none !important; color: #6b7388 !important; }
+        .scene-row button:hover { color: #fff !important; }
+        .export-mode #ui, .ui-hidden #ui { display: none; }
+    </style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<input type="file" id="audio-file" accept="audio/*" hidden>
+<input type="file" id="bg-file" accept="image/*" hidden>
+<input type="file" id="logo-file" accept="image/*" hidden>
+
+<div id="ui">
+    <div class="row" style="justify-content: space-between; align-items: center;">
+        <h1>Monstercat</h1>
+        <span><a href="aetherflux.html">AetherFlux</a> · <a href="index.html">Home</a></span>
+    </div>
+    <div class="row">
+        <button id="upload-audio">🎵 Load audio</button>
+        <button id="play">▶ Play</button>
+    </div>
+    <div id="track-name" class="hint">No track loaded</div>
+    <div id="seek-row"><span id="time-now">0:00</span><input id="seek" type="range" min="0" max="1000" value="0" step="1"><span id="time-total">0:00</span></div>
+    <label>Artist <input id="artist" type="text" value="Artist"></label>
+    <label>Title <input id="title" type="text" value="Track title"></label>
+    <div class="row">
+        <button id="upload-bg">🖼 Background</button>
+        <button id="upload-logo">Logo</button>
+    </div>
+    <label class="check"><input id="show-text" type="checkbox" checked> Show logo and text</label>
+    <label>Text position
+        <select id="text-pos">
+            <option value="below">Under the bars (classic)</option>
+            <option value="topleft">Top left</option>
+        </select>
+    </label>
+    <label>Colour <input id="color" type="color" value="#ff2d55"></label>
+    <label>Background brightness <input id="bg-opacity" type="range" min="0" max="100" value="55"></label>
+    <label>Background blur <input id="bg-blur" type="range" min="0" max="100" value="0"></label>
+    <label>Particle rush on bass <input id="rush" type="range" min="0" max="200" value="100"></label>
+
+    <div class="section">Scenes</div>
+    <div class="hint">Change the background and colour during the song: pick a background and colour, move to the moment, then add a scene. Each one fades in over 1.2 s.</div>
+    <button id="add-scene">＋ Add scene at playhead</button>
+    <div id="scene-list"></div>
+
+    <div class="section">Export</div>
+    <label>Size
+        <select id="aspect">
+            <option value="landscape">16:9 · 1920×1080</option>
+            <option value="portrait">9:16 · 1080×1920 (Shorts)</option>
+        </select>
+    </label>
+    <button id="export" class="primary">⬇ Export MP4</button>
+    <div id="status"></div>
+    <div class="hint">Everything runs in your browser; nothing is uploaded. Press H to hide this panel. Style after the Monstercat visualiser (approach from caseif/vis.js, reimplemented).</div>
+</div>
+
+<script>
+// ---- State ----
+const EXPORT_JOB = new URLSearchParams(location.search).get('export');
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const params = { color: '#ff2d55', bgOpacity: 0.55, bgBlur: 0, particleRush: 1.0, particleCount: 900, barCount: 63, showText: true, textPos: 'below' };   // textPos: 'below' (classic) or 'topleft'
+let W = 0, H = 0;
+let bgImg = null, bgSrc = null, bgCache = null, logoImg = null, logoSrc = null, logoKeyed = null;
+let audioCtx = null, analyser = null, dbData = null, gainNode = null, audioEl = null;
+let isPlaying = false, currentFile = null;
+let spec = null;            // 0-255 spectrum (16384-point FFT bins), the format the bars read
+let elapsedClock = 0;
+
+// Scene timeline: from `at` seconds, this background and colour; backgrounds cross-fade over 1.2 s and the colour
+// blends across the same time. Entries: {at, color, src, img, cache}.
+let scenes = [], activeScene = -1;
+let lyrics = [];   // [{text, start, end, words: [{start, end}]}] from the export settings
+let fade = { from: null, mix: 1 }, colorFrom = null, colorTo = null, colorMix = 1;
+function mixHex(a, b, t) {
+    const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+    const ch = (x, y) => Math.round(x + (y - x) * t);
+    const r = ch(pa >> 16 & 255, pb >> 16 & 255), g = ch(pa >> 8 & 255, pb >> 8 & 255), bl = ch(pa & 255, pb & 255);
+    return '#' + ((1 << 24) | (r << 16) | (g << 8) | bl).toString(16).slice(1);
+}
+function updateScenes(t, dt) {
+    if (scenes.length) {
+        let idx = -1;
+        for (let i = 0; i < scenes.length; i++) if (scenes[i].at <= t + 1e-6) idx = i;
+        if (idx >= 0 && idx !== activeScene) {
+            const sc = scenes[idx], animate = activeScene >= 0;
+            fade = animate && bgCache && sc.cache !== bgCache ? { from: bgCache, mix: 0 } : { from: null, mix: 1 };
+            if (sc.cache) bgCache = sc.cache;
+            if (sc.color && /^#[0-9a-f]{6}$/i.test(sc.color)) {
+                if (animate) { colorFrom = params.color; colorTo = sc.color; colorMix = 0; } else { params.color = sc.color; colorMix = 1; }
+            }
+            activeScene = idx;
+        }
+    }
+    if (fade.mix < 1) fade.mix = Math.min(1, fade.mix + dt / 1.2);
+    if (colorMix < 1) { colorMix = Math.min(1, colorMix + dt / 1.2); params.color = mixHex(colorFrom, colorTo, colorMix); }
+}
+
+function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    rebuildCaches();
+}
+// Background caches are sized to the canvas, so they're rebuilt when it or the blur changes.
+function rebuildCaches() {
+    for (const sc of scenes) sc.cache = sc.img ? buildBgCache(sc.img) : null;
+    const sc = scenes[activeScene];
+    bgCache = sc && sc.cache ? sc.cache : (bgImg ? buildBgCache(bgImg) : null);
+    fade = { from: null, mix: 1 };
+}
+window.addEventListener('resize', resize);
+
+// ---- Seeded random, so exports draw the same particles every time ----
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+let rand = mulberry32(1985);
+
+// ---- Images ----
+const loadImage = src => new Promise((ok, fail) => { const img = new Image(); img.onload = () => ok(img); img.onerror = fail; img.src = src; });
+
+// Background: cover-fitted, optionally blurred (the classic Monstercat look) and slightly oversized once, so each
+// frame is a cheap scaled blit. bgBlur 0 keeps it sharp; 1 is the soft Monstercat blur.
+function buildBgCache(img) {
+    const c = document.createElement('canvas');
+    c.width = Math.round(W * 1.08); c.height = Math.round(H * 1.08);
+    const g = c.getContext('2d');
+    const r = Math.max(c.width / img.width, c.height / img.height);
+    if (params.bgBlur > 0) g.filter = `blur(${Math.round(params.bgBlur * Math.min(W, H) / 110)}px)`;
+    g.drawImage(img, (c.width - img.width * r) / 2, (c.height - img.height * r) / 2, img.width * r, img.height * r);
+    return c;
+}
+
+// Logos with their own transparency are used as they are; logos on black are keyed.
+function prepareLogo(img) {
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth || img.width; c.height = img.naturalHeight || img.height;
+    const g = c.getContext('2d');
+    g.drawImage(img, 0, 0);
+    const px = g.getImageData(0, 0, c.width, c.height).data;
+    for (let i = 3; i < px.length; i += 4) if (px[i] < 250) return img;
+    return keyOutBlack(img);
+}
+
+// Logos on black: black becomes transparent, bright parts stay.
+function keyOutBlack(img) {
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth || img.width; c.height = img.naturalHeight || img.height;
+    const g = c.getContext('2d');
+    g.drawImage(img, 0, 0);
+    const data = g.getImageData(0, 0, c.width, c.height), px = data.data;
+    for (let i = 0; i < px.length; i += 4) {
+        const m = Math.max(px[i], px[i + 1], px[i + 2]);
+        if (m > 0) { const k = 255 / m; px[i] = Math.min(255, px[i] * k); px[i + 1] = Math.min(255, px[i + 1] * k); px[i + 2] = Math.min(255, px[i + 2] * k); }
+        px[i + 3] = Math.round(Math.max(0, Math.min(255, (m - 14) * 1.15)) * (px[i + 3] / 255));
+    }
+    g.putImageData(data, 0, 0);
+    return c;
+}
+
+// ---- Analysis: bars, centre-free bass "flow" for the particles ----
+// Monstercat-style bar heights (0-1), after caseif/vis.js (reimplemented): bars on a power curve from 11 Hz to
+// 3.2 kHz (lows get most bars), a gentle lift for the quieter highs, automatic gain, peaks kept sharp while
+// neighbours are smoothed, the first bars softened, then each bar raised to a power (6 for lows, 3 for highs).
+let mcPeak = 0.5;
+function monstercatBars(s, sampleRate, count, dt) {
+    const binHz = sampleRate / 16384, start = 11 / binHz, end = 3230 / binHz;
+    let v = new Array(count);
+    for (let i = 0; i < count; i++) {
+        const bin = Math.pow(i / count, 2.5) * (end - start) + start;
+        const b0 = Math.floor(bin), fr = bin - b0;
+        v[i] = ((s[b0] || 0) * (1 - fr) + (s[b0 + 1] || 0) * fr) / 255;
+    }
+    v = v.map((c, i) => c > 0.02 ? c + 0.15 * Math.pow(i / count, 0.8) : c);
+    mcPeak = Math.max(Math.max(...v), mcPeak - dt * 0.012);
+    const lift = Math.max(0, 0.97 - mcPeak);
+    v = v.map(c => c > 0.02 ? Math.min(1, c + lift) : c);
+    const keepPeaks = (a, blend) => a.map((c, i) => {
+        if (i === 0) return c;
+        if (i === a.length - 1) return (a[i - 1] + c) / 2;
+        const prev = a[i - 1], next = a[i + 1];
+        return c >= prev && c >= next ? c : blend(c, Math.max(prev, next), Math.min(prev, next));
+    });
+    v = keepPeaks(v, (c, hi) => (c + hi) / 2);
+    v = keepPeaks(v, (c, hi, lo) => c / 2 + hi / 3 + lo / 6);
+    for (let i = 0; i < Math.min(7, count); i++) v[i] *= 0.7 + 0.3 * Math.pow((i + 1) / 7, 2);
+    v = v.map((c, i) => i === 0 || i === count - 1 ? c : (v[i - 1] + c + v[i + 1]) / 3);
+    return v.map((c, i) => {
+        const exp = 3 * (1 - Math.pow(i / count, 2)) + 3;
+        return Math.max(Math.min(1, Math.pow(Math.min(1, c), exp) * 1.35), 0.008);
+    });
+}
+
+// Particle speed: bass (25-130 Hz) against the loudest bass so far (forgets slowly, so breakdowns read calm),
+// raised to a high power so only heavy sections rush; eased in and out. Also a soft bass level for the background.
+function makeFlowTracker() {
+    const st = { peak: -60, flow: 0, levelPeak: -60, level: 0 };
+    return (bassDb, dt) => {
+        st.peak = Math.max(bassDb, st.peak - dt * 0.3);
+        const amp = Math.max(0, Math.min(1, (bassDb - (st.peak - 20)) / 20));
+        const target = Math.pow(amp, 4.5);
+        st.flow += (target - st.flow) * (1 - Math.exp(-dt / (target > st.flow ? 0.12 : 0.6)));
+        st.levelPeak = Math.max(bassDb, st.levelPeak - dt * 3);
+        const x = Math.max(0, Math.min(1, (bassDb - (st.levelPeak - 14)) / 14));
+        st.level += (x - st.level) * (1 - Math.exp(-dt / (x > st.level ? 0.04 : 0.15)));
+        return { flow: st.flow, level: st.level };
+    };
+}
+let flowTracker = makeFlowTracker();
+
+function bassDbFrom(dbSpec, sampleRate) {
+    const binHz = sampleRate / 16384, a = Math.max(1, Math.floor(25 / binHz)), b = Math.ceil(130 / binHz);
+    let sum = 0;
+    for (let k = a; k <= b; k++) sum += Math.max(-100, Math.min(0, dbSpec[k]));
+    return sum / (b - a + 1);
+}
+
+// ---- Particles: small glowing flecks and soft bokeh, flying left to right ----
+let particles = [], bokeh = [];
+function spawn(p, anywhere) {
+    p.x = anywhere ? rand() : -0.02 - rand() * 0.05;
+    const g = (rand() + rand() + rand()) / 3;          // centre-weighted vertical spread
+    p.y = 0.08 + g * 0.84;
+    p.z = Math.pow(rand(), 1.6);                        // most particles far away
+    p.wob = rand() * Math.PI * 2;
+    p.vy = (rand() - 0.5) * 0.02;
+}
+function initParticles() {
+    rand = mulberry32(1985);
+    particles = Array.from({ length: params.particleCount }, () => { const p = {}; spawn(p, true); return p; });
+    bokeh = Array.from({ length: 36 }, () => { const p = {}; spawn(p, true); p.z = 0.3 + rand() * 0.7; return p; });
+}
+function updateParticles(dt, flow) {
+    const speed = 0.035 + 0.22 * params.particleRush * flow;       // screen widths per second, at full depth
+    for (const p of particles) {
+        p.x += speed * (0.25 + 0.75 * p.z) * dt;
+        p.y += p.vy * dt;
+        p.wob += dt * 0.8;
+        if (p.x > 1.03 || p.y < -0.05 || p.y > 1.05) spawn(p, false);
+    }
+    for (const b of bokeh) {
+        b.x += speed * 0.18 * b.z * dt;
+        if (b.x > 1.1) { spawn(b, false); b.z = 0.3 + rand() * 0.7; }
+    }
+}
+function drawParticles() {
+    const k = Math.min(W, H) / 1080;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const b of bokeh) {
+        const r = (18 + 40 * b.z) * k;
+        const g = ctx.createRadialGradient(b.x * W, b.y * H, 0, b.x * W, b.y * H, r);
+        g.addColorStop(0, hexA(params.color, 0.10 * b.z));
+        g.addColorStop(1, hexA(params.color, 0));
+        ctx.fillStyle = g;
+        ctx.fillRect(b.x * W - r, b.y * H - r, r * 2, r * 2);
+    }
+    ctx.fillStyle = '#ffffff';
+    for (const p of particles) {
+        const r = (0.6 + 2.4 * p.z) * k;
+        ctx.globalAlpha = 0.25 + 0.6 * p.z;
+        ctx.beginPath();
+        ctx.arc(p.x * W, (p.y + Math.sin(p.wob) * 0.003) * H, r, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
+}
+function hexA(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${n >> 16 & 255}, ${n >> 8 & 255}, ${n & 255}, ${a})`;
+}
+
+// ---- One frame ----
+// Current lyric line: appears just before it's sung, stays until shortly after (or until the next line), fading
+// in and out; words already sung are full white, the rest dimmer.
+function drawLyrics(t) {
+    if (!lyrics.length) return;
+    let line = null, next = null;
+    for (let i = 0; i < lyrics.length; i++) {
+        if (lyrics[i].start - 0.25 <= t) { line = lyrics[i]; next = lyrics[i + 1] || null; } else break;
+    }
+    if (!line) return;
+    const until = Math.min(line.end + 1.2, next ? next.start - 0.25 : Infinity);
+    if (t > until) return;
+    const alpha = Math.min(1, (t - (line.start - 0.25)) / 0.25, (until - t) / 0.25);
+    const portrait = H > W;
+    const size = Math.round(Math.min(W, H) * (portrait ? 0.052 : 0.046));
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, alpha);
+    ctx.font = `600 ${size}px Montserrat, 'Segoe UI', sans-serif`;
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,0.75)';
+    ctx.shadowBlur = size * 0.4;
+    const words = line.text.split(/\s+/);
+    const space = ctx.measureText(' ').width;
+    const widths = words.map(w => ctx.measureText(w).width);
+    const total = widths.reduce((a, b) => a + b, 0) + space * (words.length - 1);
+    let x = (W - total) / 2;
+    const y = H * (portrait ? 0.72 : 0.82);
+    words.forEach((w, i) => {
+        const sung = line.words?.[i] ? t >= line.words[i].start : true;
+        ctx.fillStyle = sung ? '#ffffff' : 'rgba(255,255,255,0.45)';
+        ctx.fillText(w, x, y);
+        x += widths[i] + space;
+    });
+    ctx.restore();
+}
+
+function drawFrame(dt, t, heights, level) {
+    ctx.fillStyle = '#05060a';
+    ctx.fillRect(0, 0, W, H);
+    if (bgCache) {
+        const zoom = 1 + level * 0.025;
+        const drawBg = (cache, alpha) => {
+            const bw = cache.width * zoom / 1.08, bh = cache.height * zoom / 1.08;
+            ctx.globalAlpha = params.bgOpacity * alpha;
+            ctx.drawImage(cache, (W - bw) / 2, (H - bh) / 2, bw, bh);
+        };
+        if (fade.from && fade.mix < 1) drawBg(fade.from, 1 - fade.mix);
+        drawBg(bgCache, fade.from && fade.mix < 1 ? fade.mix : 1);
+        ctx.globalAlpha = 1;
+        const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
+        vg.addColorStop(0, 'rgba(0,0,0,0)');
+        vg.addColorStop(1, 'rgba(0,0,0,0.55)');
+        ctx.fillStyle = vg;
+        ctx.fillRect(0, 0, W, H);
+    }
+    drawParticles();
+
+    // Bars and text block: centred, the classic Monstercat arrangement.
+    const portrait = H > W;
+    const barsW = W * (portrait ? 0.86 : 0.66), left = (W - barsW) / 2;
+    const base = H * (portrait ? 0.52 : 0.56), maxH = H * (portrait ? 0.16 : 0.24);
+    const count = params.barCount, gap = barsW * 0.0055, bw = (barsW - gap * (count - 1)) / count;
+    ctx.save();
+    ctx.fillStyle = params.color;
+    ctx.shadowColor = params.color;
+    ctx.shadowBlur = Math.min(W, H) / 140;
+    ctx.beginPath();
+    for (let i = 0; i < count; i++) {
+        const h = Math.max(2, heights[i] * maxH);
+        ctx.rect(left + i * (bw + gap), base - h, bw, h);
+    }
+    ctx.fill();
+    ctx.restore();
+
+    // Logo block, then the artist (large) and title beneath the bars. Hidden when showText is off, so an export
+    // can be just the visualiser and spectrum.
+    if (params.showText) {
+        const topLeft = params.textPos === 'topleft';
+        const block = topLeft ? (portrait ? W * 0.12 : W * 0.05) : (portrait ? W * 0.17 : W * 0.075);
+        const by = topLeft ? H * (portrait ? 0.06 : 0.055) : base + H * 0.03;
+        const left = topLeft ? W * (portrait ? 0.06 : 0.035) : (W - barsW) / 2;
+        // Top-left text sits on the picture itself, so a soft dark shadow keeps it readable on light scenes.
+        const lift = c => { if (topLeft) { c.shadowColor = 'rgba(0,0,0,0.75)'; c.shadowBlur = block * 0.18; c.shadowOffsetY = block * 0.02; } };
+        if (logoImg) {
+            ctx.save();
+            lift(ctx);
+            ctx.drawImage(logoKeyed || logoImg, left, by, block, block);
+            ctx.restore();
+        } else {
+            ctx.save();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = Math.max(2, block * 0.04);
+            ctx.strokeRect(left + ctx.lineWidth / 2, by + ctx.lineWidth / 2, block - ctx.lineWidth, block - ctx.lineWidth);
+            ctx.restore();
+        }
+        const tx = left + block + W * (portrait ? 0.04 : 0.015);
+        const artist = (document.getElementById('artist').value || '').toUpperCase();
+        const title = (document.getElementById('title').value || '').toUpperCase();
+        ctx.save();
+        ctx.fillStyle = '#ffffff';
+        ctx.textBaseline = 'top';
+        lift(ctx);
+        ctx.font = `800 ${Math.round(block * 0.42)}px Montserrat, 'Segoe UI', sans-serif`;
+        const maxW = topLeft ? W * 0.6 : left + barsW - tx;
+        ctx.fillText(artist, tx, by + block * 0.04, maxW);
+        ctx.font = `400 ${Math.round(block * 0.22)}px Montserrat, 'Segoe UI', sans-serif`;
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.fillText(title, tx, by + block * 0.58, maxW);
+        ctx.restore();
+        drawLyrics(t);
+    }
+}
+
+// ---- Live playback ----
+function ensureAudio() {
+    if (audioCtx) { if (audioCtx.state === 'suspended') audioCtx.resume(); return; }
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 16384;
+    analyser.smoothingTimeConstant = 0.2;
+    dbData = new Float32Array(analyser.frequencyBinCount);
+    gainNode = audioCtx.createGain();
+    gainNode.connect(analyser);
+    analyser.connect(audioCtx.destination);
+    audioEl = new Audio();
+    audioCtx.createMediaElementSource(audioEl).connect(gainNode);
+    audioEl.addEventListener('ended', () => { isPlaying = false; updatePlay(); });
+    audioEl.addEventListener('loadedmetadata', () => { document.getElementById('time-total').textContent = formatTime(audioEl.duration); });
+}
+function updatePlay() { document.getElementById('play').textContent = isPlaying ? '⏸ Pause' : '▶ Play'; }
+function formatTime(s) { s = Math.max(0, s || 0); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; }
+function loadAudio(file) {
+    ensureAudio();
+    if (audioEl.src) URL.revokeObjectURL(audioEl.src);
+    audioEl.src = URL.createObjectURL(file);
+    currentFile = file;
+    document.getElementById('track-name').textContent = file.name;
+    document.getElementById('title').value = file.name.replace(/\.[^/.]+$/, '');
+    activeScene = -1;
+    audioEl.play().then(() => { isPlaying = true; updatePlay(); }).catch(() => {});
+}
+
+let last = performance.now(), seeking = false;
+function animate(now) {
+    requestAnimationFrame(animate);
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    elapsedClock += dt;
+    let heights, level = 0, flow = 0;
+    if (audioEl && audioEl.src) {
+        updateScenes(audioEl.currentTime, dt);
+        if (!seeking && audioEl.duration) document.getElementById('seek').value = Math.round(audioEl.currentTime / audioEl.duration * 1000);
+        document.getElementById('time-now').textContent = formatTime(audioEl.currentTime);
+    }
+    if (isPlaying && analyser) {
+        analyser.getFloatFrequencyData(dbData);
+        if (!spec) spec = new Uint8Array(1400);
+        for (let k = 0; k < spec.length; k++) spec[k] = Math.max(0, Math.min(255, Math.round(255 * (dbData[k] + 100) / 70)));
+        heights = monstercatBars(spec, audioCtx.sampleRate, params.barCount, dt);
+        ({ flow, level } = flowTracker(bassDbFrom(dbData, audioCtx.sampleRate), dt));
+    } else {
+        heights = Array.from({ length: params.barCount }, (_, i) => 0.03 + 0.02 * Math.sin(elapsedClock * 2.2 + i * 0.35));
+    }
+    updateParticles(dt, flow);
+    drawFrame(dt, audioEl ? audioEl.currentTime : elapsedClock, heights, level);
+}
+
+// ---- Frame-by-frame export (driven by js/export.js, which loads this page in an iframe with ?export=local) ----
+function makeFft(n) {
+    const levels = Math.log2(n), cos = new Float64Array(n / 2), sin = new Float64Array(n / 2), rev = new Uint32Array(n);
+    for (let i = 0; i < n / 2; i++) { cos[i] = Math.cos(2 * Math.PI * i / n); sin[i] = Math.sin(2 * Math.PI * i / n); }
+    for (let i = 0; i < n; i++) { let r = 0; for (let b = 0; b < levels; b++) r |= ((i >> b) & 1) << (levels - 1 - b); rev[i] = r; }
+    return (re, im) => {
+        for (let i = 0; i < n; i++) { const j = rev[i]; if (j > i) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+        for (let size = 2; size <= n; size *= 2) {
+            const half = size / 2, step = n / size;
+            for (let i = 0; i < n; i += size) for (let j = 0; j < half; j++) {
+                const k = j * step, a = i + j, b = a + half;
+                const tr = re[b] * cos[k] + im[b] * sin[k], ti = im[b] * cos[k] - re[b] * sin[k];
+                re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+            }
+        }
+    };
+}
+
+// The live analyser offline: 16384-point Blackman FFT centred on each frame, smoothing 0.2, -100 to -30 dB as
+// 0-255; plus the 25-130 Hz bass dB for the particles.
+async function analyseTrack(url, fps) {
+    const data = await (await fetch(url)).arrayBuffer();
+    const audio = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(data);
+    const sr = audio.sampleRate, N = 16384, len = audio.length;
+    const mono = new Float32Array(len);
+    for (let c = 0; c < audio.numberOfChannels; c++) { const ch = audio.getChannelData(c); for (let i = 0; i < len; i++) mono[i] += ch[i] / audio.numberOfChannels; }
+    const win = new Float32Array(N);
+    for (let i = 0; i < N; i++) win[i] = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / N) + 0.08 * Math.cos(4 * Math.PI * i / N);
+    const fft = makeFft(N), re = new Float64Array(N), im = new Float64Array(N);
+    const HI = 1400, smooth = new Float64Array(HI), keep = Math.pow(0.2, 60 / fps);
+    const binHz = sr / N, lo = Math.max(1, Math.floor(25 / binHz)), hiB = Math.ceil(130 / binHz);
+    const count = Math.ceil(audio.duration * fps), frames = new Array(count), bass = new Float32Array(count);
+    const toByte = m => { const db = m > 0 ? 20 * Math.log10(m) : -1000; return Math.max(0, Math.min(255, Math.round(255 * (db + 100) / 70))); };
+    for (let f = 0; f < count; f++) {
+        const start = Math.round((f / fps) * sr) - N / 2;
+        for (let i = 0; i < N; i++) { const at = start + i; re[i] = (at >= 0 && at < len ? mono[at] : 0) * win[i]; im[i] = 0; }
+        fft(re, im);
+        const bytes = new Uint8Array(HI);
+        let sum = 0;
+        for (let k = 0; k < HI; k++) {
+            const mag = Math.hypot(re[k], im[k]) / N;
+            smooth[k] = keep * smooth[k] + (1 - keep) * mag;
+            bytes[k] = toByte(smooth[k]);
+            if (k >= lo && k <= hiB) sum += Math.max(-100, Math.min(0, mag > 0 ? 20 * Math.log10(mag) : -100));
+        }
+        frames[f] = bytes;
+        bass[f] = sum / (hiB - lo + 1);
+        if (f % 200 === 0) await new Promise(r => setTimeout(r));
+    }
+    return { frames, bass, sampleRate: sr, duration: audio.duration };
+}
+
+let exportData = null, exportFps = 30;
+window.__setupExport = async function () {
+    const { settings: s, audioUrl } = window.__localExport;
+    exportFps = s.fps;
+    Object.assign(params, {
+        color: s.params.color ?? params.color, bgOpacity: s.params.bgOpacity ?? params.bgOpacity, bgBlur: s.params.bgBlur ?? params.bgBlur,
+        particleRush: s.params.particleRush ?? params.particleRush, particleCount: s.params.particleCount ?? params.particleCount,
+        showText: s.params.showText ?? params.showText, textPos: s.params.textPos ?? params.textPos,
+    });
+    document.getElementById('artist').value = s.artist;
+    document.getElementById('title').value = s.title;
+    if (s.bg) { bgImg = await loadImage(s.bg); bgCache = buildBgCache(bgImg); }
+    lyrics = s.lyrics || [];
+    scenes = [];
+    for (const sc of s.scenes || []) scenes.push({ at: sc.at, color: sc.color, cache: sc.bg ? buildBgCache(await loadImage(sc.bg)) : null });
+    activeScene = -1;
+    if (s.logo) { logoImg = await loadImage(s.logo); logoKeyed = prepareLogo(logoImg); }
+    await document.fonts.ready;
+    initParticles();
+    flowTracker = makeFlowTracker();
+    mcPeak = 0.5;
+    exportData = await analyseTrack(audioUrl, exportFps);
+    return { frames: exportData.frames.length, duration: exportData.duration };
+};
+window.__advanceTo = function (n) {
+    const dt = 1 / exportFps;
+    for (let i = 0; i < n; i++) {
+        updateScenes(i / exportFps, dt);
+        monstercatBars(exportData.frames[i], exportData.sampleRate, params.barCount, dt);
+        const { flow } = flowTracker(exportData.bass[i], dt);
+        updateParticles(dt, flow);
+    }
+};
+window.__renderExportFrame = function (i) {
+    const dt = 1 / exportFps, t = i / exportFps;
+    updateScenes(t, dt);
+    const heights = monstercatBars(exportData.frames[i], exportData.sampleRate, params.barCount, dt);
+    const { flow, level } = flowTracker(exportData.bass[i], dt);
+    updateParticles(dt, flow);
+    drawFrame(dt, t, heights, level);
+    return canvas;
+};
+
+// ---- Controls ----
+function setStatus(text, href, download) {
+    const el = document.getElementById('status');
+    el.textContent = '';
+    if (href) { const a = document.createElement('a'); a.href = href; if (download) a.download = download; else a.target = '_blank'; a.textContent = text; el.appendChild(a); }
+    else el.textContent = text;
+}
+
+async function exportMp4() {
+    const btn = document.getElementById('export');
+    btn.disabled = true;
+    try {
+        if (!currentFile) throw new Error('Load a track first.');
+        if (!BrowserExport.supported()) throw new Error('Exporting needs Chrome or Edge on a computer.');
+        if (isPlaying) { audioEl.pause(); isPlaying = false; updatePlay(); }
+        const aspect = document.getElementById('aspect').value;
+        const artist = document.getElementById('artist').value, title = document.getElementById('title').value;
+        const fileName = BrowserExport.fileNameFor(artist, title, aspect);
+        const save = await BrowserExport.pickSaveFile(fileName);   // first, while the click still counts as a gesture
+        setStatus('Exporting…');
+        const result = await BrowserExport.exportVideo({
+            page: 'monstercat.html', audioFile: currentFile, aspect, fileName, save,
+            settings: {
+                artist, title,
+                params: { color: document.getElementById('color').value, bgOpacity: params.bgOpacity, bgBlur: params.bgBlur, particleRush: params.particleRush,
+                          particleCount: params.particleCount, showText: params.showText, textPos: params.textPos },
+                bg: bgSrc, logo: logoSrc,
+                scenes: scenes.map(({ at, color, src }) => ({ at, color, bg: src })),
+            },
+        });
+        if (result.savedTo) setStatus(`✓ Saved ${result.savedTo}`);
+        else setStatus(`✓ Download ${fileName}`, result.url, fileName);
+    } catch (err) { setStatus(`⚠ ${err.message}`); }
+    finally { btn.disabled = false; }
+}
+
+function renderSceneList() {
+    const list = document.getElementById('scene-list');
+    list.textContent = '';
+    scenes.forEach((sc, i) => {
+        const row = document.createElement('div');
+        row.className = 'scene-row';
+        const thumb = document.createElement('div');
+        thumb.className = 'thumb';
+        if (sc.src) thumb.style.backgroundImage = `url('${sc.src}')`;
+        const label = document.createElement('span');
+        label.textContent = `${formatTime(sc.at)}.${Math.round(sc.at % 1 * 10)}`;
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        dot.style.background = sc.color;
+        const del = document.createElement('button');
+        del.textContent = '✕';
+        del.title = 'Remove scene';
+        del.onclick = () => { scenes.splice(i, 1); activeScene = -1; rebuildCaches(); renderSceneList(); };
+        row.append(thumb, label, dot, del);
+        list.appendChild(row);
+    });
+}
+
+function addSceneAtPlayhead() {
+    if (!bgImg) { setStatus('Pick a background for this scene first.'); return; }
+    const at = audioEl && audioEl.src ? Math.round(audioEl.currentTime * 10) / 10 : 0;
+    scenes = scenes.filter(sc => Math.abs(sc.at - at) > 0.05);
+    scenes.push({ at, color: document.getElementById('color').value, src: bgSrc, img: bgImg, cache: buildBgCache(bgImg) });
+    scenes.sort((x, y) => x.at - y.at);
+    activeScene = -1;
+    renderSceneList();
+    setStatus(`Scene added at ${formatTime(at)}.`);
+}
+
+function bindControls() {
+    document.getElementById('upload-audio').onclick = () => document.getElementById('audio-file').click();
+    document.getElementById('upload-bg').onclick = () => document.getElementById('bg-file').click();
+    document.getElementById('upload-logo').onclick = () => document.getElementById('logo-file').click();
+    document.getElementById('audio-file').onchange = e => { const f = e.target.files[0]; if (f) loadAudio(f); };
+    document.getElementById('bg-file').onchange = async e => {
+        const f = e.target.files[0]; if (!f) return;
+        bgSrc = URL.createObjectURL(f);
+        bgImg = await loadImage(bgSrc);
+        bgCache = buildBgCache(bgImg);
+        fade = { from: null, mix: 1 };
+    };
+    document.getElementById('logo-file').onchange = async e => {
+        const f = e.target.files[0]; if (!f) return;
+        logoSrc = URL.createObjectURL(f);
+        logoImg = await loadImage(logoSrc);
+        logoKeyed = prepareLogo(logoImg);
+    };
+    document.getElementById('play').onclick = () => {
+        if (!audioEl || !audioEl.src) { document.getElementById('audio-file').click(); return; }
+        ensureAudio();
+        if (isPlaying) { audioEl.pause(); isPlaying = false; } else { audioEl.play(); isPlaying = true; }
+        updatePlay();
+    };
+    const seek = document.getElementById('seek');
+    seek.oninput = () => { seeking = true; if (audioEl && audioEl.duration) { audioEl.currentTime = seek.value / 1000 * audioEl.duration; activeScene = -1; } };
+    seek.onchange = () => { seeking = false; };
+    document.getElementById('color').oninput = e => { params.color = e.target.value; colorMix = 1; document.documentElement.style.setProperty('--accent', params.color); };
+    document.getElementById('bg-opacity').oninput = e => { params.bgOpacity = e.target.value / 100; };
+    document.getElementById('bg-blur').onchange = e => { params.bgBlur = e.target.value / 100; rebuildCaches(); };
+    document.getElementById('rush').oninput = e => { params.particleRush = e.target.value / 100; };
+    document.getElementById('show-text').onchange = e => { params.showText = e.target.checked; };
+    document.getElementById('text-pos').onchange = e => { params.textPos = e.target.value; };
+    document.getElementById('add-scene').onclick = addSceneAtPlayhead;
+    document.getElementById('export').onclick = exportMp4;
+    window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'h' && !['INPUT', 'SELECT'].includes(document.activeElement.tagName)) document.body.classList.toggle('ui-hidden'); });
+}
+
+// Arriving from the Song Studio ("Make the video"): its title, artist and accent colour.
+function applyStudioHandoff() {
+    if (!new URLSearchParams(location.search).has('from')) return;
+    let h = null;
+    try { h = JSON.parse(localStorage.getItem('studio.handoff') || 'null'); } catch {}
+    if (!h) return;
+    if (h.title) document.getElementById('title').value = h.title;
+    if (h.artist) document.getElementById('artist').value = h.artist;
+    if (/^#[0-9a-f]{6}$/i.test(h.accent || '')) {
+        params.color = h.accent;
+        document.getElementById('color').value = h.accent;
+        document.documentElement.style.setProperty('--accent', h.accent);
+    }
+    setStatus(`Set up for “${h.title}”. Load your finished track to start.`);
+}
+
+resize();
+if (EXPORT_JOB) {
+    document.body.classList.add('export-mode');
+    window.__visReady = true;
+} else {
+    initParticles();
+    bindControls();
+    applyStudioHandoff();
+    requestAnimationFrame(animate);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,2375 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AetherFlux Visualiser</title>
+    <script src="vendor/tailwind-3.4.17.js"></script>
+    <script src="vendor/three.r128.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
+    <script src="js/export.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent: #06b6d4;
+            --accent-glow: rgba(6, 182, 212, 0.45);
+        }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #030712;
+            font-family: 'Inter', sans-serif;
+            color: #f8fafc;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        #bg-image-layer {
+            position: fixed;
+            inset: -5%;
+            width: 110%;
+            height: 110%;
+            z-index: 0;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0.45;
+            pointer-events: none;
+            transition: opacity 0.25s ease, transform 0.08s linear, background-image 1.2s ease;
+        }
+        #webgl-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+            cursor: grab;
+        }
+        #webgl-canvas:active {
+            cursor: grabbing;
+        }
+        #center-radial-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 5;
+            pointer-events: none;
+        }
+        .glass-panel {
+            background: rgba(9, 13, 26, 0.76);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+        .panel-hidden-left {
+            transform: translateX(-120%) !important;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .panel-hidden-right {
+            transform: translateX(120%) !important;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .panel-hidden {
+            transform: translate(-50%, 150%) !important;
+            opacity: 0;
+            pointer-events: none;
+        }
+        input[type=range] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 5px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.14);
+            border-radius: 999px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -4.5px;
+            box-shadow: 0 0 10px var(--accent-glow);
+            transition: transform 0.15s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+        .piano-key {
+            transition: all 0.1s ease;
+        }
+        .piano-key.active {
+            background: var(--accent) !important;
+            color: #030712 !important;
+            transform: translateY(2px);
+            box-shadow: 0 0 18px var(--accent-glow);
+        }
+        .step-btn.active {
+            background: rgba(6, 182, 212, 0.28) !important;
+            color: #67e8f9 !important;
+            border-color: rgba(6, 182, 212, 0.6) !important;
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.35);
+        }
+        .export-mode header, .export-mode aside, .export-mode footer, .export-mode #rec-toast {
+            display: none !important;
+        }
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 999px;
+        }
+    </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden">
+
+    <div id="bg-image-layer"></div>
+    <canvas id="webgl-canvas"></canvas>
+    <!-- Nation-Style Center Circular Audio Spectrum & Emblem Canvas -->
+    <canvas id="center-radial-canvas"></canvas>
+    <!-- Full-Width Bottom Spectrum Overlay (Directly over Background Image) -->
+    <canvas id="bottom-spectrum-overlay" class="fixed bottom-0 left-0 w-screen h-44 z-10 pointer-events-none transition-opacity duration-300"></canvas>
+
+    <!-- Hidden File Inputs -->
+    <input type="file" id="bg-file-input" accept="image/*" class="hidden" onchange="handleBgImage(event)">
+    <input type="file" id="logo-file-input" accept="image/*" class="hidden" onchange="handleLogoImage(event)">
+    <input type="file" id="audio-file-input" accept="audio/*" class="hidden" onchange="handleAudioFile(event)">
+
+    <header class="fixed top-4 left-4 right-4 z-30 flex flex-wrap items-center justify-between gap-3 pointer-events-none">
+        <!-- Top-Left Artist, Track & Direct Upload Card -->
+        <div class="glass-panel px-4 py-2.5 rounded-2xl flex flex-wrap items-center gap-3.5 pointer-events-auto border border-cyan-500/25">
+            <a href="index.html" class="text-[10px] mono text-slate-400 hover:text-white pr-2 border-r border-white/10" title="All visualisers">← Home</a>
+            <a href="monstercat.html" class="text-[10px] mono text-slate-400 hover:text-white pr-2 border-r border-white/10" title="The Monstercat-style visualiser">Monstercat</a>
+            <div onclick="document.getElementById('bg-file-input').click()" id="cover-art-thumb" class="relative flex items-center justify-center w-12 h-12 rounded-xl bg-cyan-500/15 border border-cyan-400/30 cursor-pointer overflow-hidden group shrink-0" title="Click to upload Cover / Background Image">
+                <div id="cover-default-icon" class="w-3.5 h-3.5 rounded-full bg-cyan-400 shadow-[0_0_12px_#06b6d4] animate-pulse"></div>
+                <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[9px] font-bold mono text-cyan-200 transition">BG IMG</div>
+            </div>
+            <div class="flex flex-col">
+                <div class="flex items-center gap-2 mb-0.5">
+                    <span class="text-[9px] mono uppercase tracking-widest px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">NOW VISUALIZING</span>
+                    <span id="audio-mode-badge" class="text-[9px] mono uppercase text-slate-400">SYNTH 124 BPM</span>
+                </div>
+                <!-- Directly Editable Track Title & Artist Name -->
+                <input id="header-track-title" type="text" value="Aetherial Pulse" oninput="syncMetaFromHeader()" placeholder="Enter Track Name..." class="bg-transparent border-b border-transparent hover:border-white/20 focus:border-cyan-400 text-sm font-bold tracking-wide text-white focus:outline-none w-44 sm:w-56 transition px-0.5" title="Click to edit Track Name">
+                <input id="header-artist-name" type="text" value="AetherFlux Studio" oninput="syncMetaFromHeader()" placeholder="Enter Artist Name..." class="bg-transparent border-b border-transparent hover:border-white/20 focus:border-cyan-400 text-[11px] text-cyan-300/90 mono focus:outline-none w-44 sm:w-56 transition px-0.5 mt-0.5" title="Click to edit Artist Name">
+            </div>
+            <!-- Quick Upload Buttons Always Visible in Top-Left -->
+            <div class="flex flex-col gap-1 pl-2 border-l border-white/10">
+                <button onclick="document.getElementById('audio-file-input').click()" class="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/35 text-cyan-200 border border-cyan-500/40 text-[10px] font-semibold mono transition flex items-center gap-1.5">
+                    <span>🎵 Upload Audio</span>
+                </button>
+                <div class="flex gap-1">
+                    <button onclick="document.getElementById('logo-file-input').click()" class="px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/35 text-amber-200 border border-amber-500/40 text-[10px] font-medium mono transition flex items-center gap-1" title="Upload Center Emblem Logo">
+                        <span>🛡️ Logo</span>
+                    </button>
+                    <button onclick="document.getElementById('bg-file-input').click()" class="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/15 text-slate-200 border border-white/10 text-[10px] font-medium mono transition flex items-center gap-1" title="Upload Background Image">
+                        <span>🖼️ BG</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Transport (Play / Pause / Scrubber) & Full-Track Auto-Export Studio -->
+        <div class="glass-panel px-3.5 py-2 rounded-2xl flex flex-wrap items-center gap-2.5 pointer-events-auto">
+            <!-- Play / Pause Button -->
+            <button onclick="toggleAudioEngine()" id="audio-toggle-btn" class="px-3.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-semibold mono transition flex items-center gap-1.5">
+                <span>▶ Play</span>
+            </button>
+
+            <!-- Restart Track Button -->
+            <button onclick="restartTrack()" class="p-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white border border-white/10 text-xs mono transition" title="Restart Track from 0:00">
+                ⏮
+            </button>
+
+            <!-- Track Progress Scrubber & Time Readout -->
+            <div class="flex items-center gap-2 bg-slate-950/70 px-2.5 py-1 rounded-xl border border-white/10">
+                <span id="track-time-current" class="text-[10px] mono text-cyan-300">0:00</span>
+                <input id="track-scrubber" type="range" min="0" max="100" step="0.1" value="0" oninput="seekAudioTrack(this.value)" class="w-20 sm:w-28 accent-cyan-400">
+                <span id="track-time-total" class="text-[10px] mono text-slate-400">SYNTH</span>
+            </div>
+
+            <!-- Record & Auto-Export Full Track Button -->
+            <button onclick="recordFullTrackFromStart()" id="rec-full-btn" class="px-3 py-1.5 rounded-xl bg-rose-500/25 hover:bg-rose-500/35 text-rose-200 border border-rose-500/50 text-xs font-semibold mono transition flex items-center gap-1.5" title="Rewind to 0:00, record entire track, and auto-export when finished">
+                <span id="rec-dot" class="w-2 h-2 rounded-full bg-rose-400"></span>
+                <span id="rec-label">⏺ Live Rec (WebM)</span>
+            </button>
+
+            <!-- Frame-by-frame export: renders every frame at full size in the browser, muxed with the original audio -->
+            <div class="flex items-center gap-1.5 pl-1.5 border-l border-white/10">
+                <select id="export-aspect" class="bg-slate-950/70 border border-white/10 rounded-lg px-1.5 py-1 text-[10px] mono text-white focus:outline-none" title="Export size">
+                    <option value="landscape">16:9 · 1920×1080</option>
+                    <option value="portrait">9:16 · 1080×1920 (Shorts)</option>
+                </select>
+                <button onclick="exportMp4()" id="export-btn" class="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/40 text-xs font-semibold mono transition" title="Render the whole track frame by frame to an MP4">⬇ Export MP4</button>
+                <span id="export-status" class="text-[10px] mono text-slate-300 max-w-[16rem] truncate"></span>
+            </div>
+
+            <button onclick="triggerShockwave()" class="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-semibold mono transition hidden xl:flex items-center gap-1" title="Trigger Bass Drop Shockwave">
+                <span>⚡</span>
+            </button>
+
+            <button onclick="toggleAllPanels()" id="toggle-ui-btn" class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-slate-200 hover:text-white transition text-xs mono flex items-center gap-1.5" title="Hide/Show Side Panels (Full Screen View)">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path>
+                </svg>
+                <span id="toggle-ui-label" class="hidden sm:inline">Full View</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Recording Status Banner -->
+    <div id="rec-toast" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300">
+        <div class="glass-panel px-4 py-2 rounded-xl border border-rose-400/50 text-xs mono text-rose-200 shadow-lg flex items-center gap-2.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+            <span id="rec-toast-text">RECORDING LIVE — Will Auto-Export When Track Ends</span>
+        </div>
+    </div>
+
+    <aside id="left-panel" class="fixed top-20 left-4 bottom-28 w-72 max-w-[calc(100vw-2rem)] z-20 glass-panel rounded-2xl p-4 flex flex-col gap-3.5 overflow-y-auto transition-all duration-300">
+        <!-- 01. Audio Source Selector -->
+        <div class="flex flex-col gap-2">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mono">01 // Audio Input Source</span>
+            <div class="grid grid-cols-3 gap-1.5">
+                <button onclick="setAudioSource('synth')" id="src-synth" class="py-2 px-2 rounded-xl text-xs font-medium bg-cyan-500/20 text-cyan-200 border border-cyan-500/40 transition">
+                    🎹 Synth
+                </button>
+                <button onclick="setAudioSource('mic')" id="src-mic" class="py-2 px-2 rounded-xl text-xs font-medium bg-white/[0.03] text-slate-300 hover:bg-white/10 border border-white/5 transition">
+                    🎙️ Mic
+                </button>
+                <button onclick="document.getElementById('audio-file-input').click()" id="src-file" class="py-2 px-2 rounded-xl text-xs font-medium bg-white/[0.03] text-slate-300 hover:bg-white/10 border border-white/5 transition">
+                    🎵 Track
+                </button>
+            </div>
+        </div>
+
+        <hr class="border-white/10">
+
+        <!-- 02. Track Metadata & Custom Background Image -->
+        <div class="flex flex-col gap-2.5">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mono">02 // Track & Backdrop</span>
+            <div class="grid grid-cols-2 gap-1.5">
+                <input id="input-artist" type="text" value="AetherFlux Studio" oninput="updateMetaDisplay()" placeholder="Artist Name" class="bg-slate-950/70 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400">
+                <input id="input-title" type="text" value="Aetherial Pulse" oninput="updateMetaDisplay()" placeholder="Track Title" class="bg-slate-950/70 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400">
+            </div>
+
+            <div class="flex gap-1.5">
+                <button onclick="document.getElementById('bg-file-input').click()" class="flex-1 py-2 px-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-200 border border-cyan-500/30 text-xs font-medium transition">
+                    🖼️ Upload BG Image
+                </button>
+                <button onclick="clearBgImage()" class="py-2 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/10 text-xs transition" title="Clear Background">
+                    ✕
+                </button>
+            </div>
+
+            <!-- Center Emblem Logo Controls -->
+            <div class="flex gap-1.5">
+                <button onclick="document.getElementById('logo-file-input').click()" class="flex-1 py-2 px-2.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 border border-amber-500/30 text-xs font-medium transition">
+                    🛡️ Upload Center Logo
+                </button>
+                <button onclick="clearLogoImage()" class="py-2 px-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/10 text-xs transition" title="Reset Default Emblem">
+                    ✕
+                </button>
+            </div>
+
+            <!-- Center Circle Spectrum Mode Selector -->
+            <div class="flex flex-col gap-1 pt-0.5">
+                <span class="text-[10px] mono text-slate-400 uppercase">Center Circle Spectrum Style</span>
+                <div class="grid grid-cols-3 gap-1">
+                    <button onclick="setCenterStyle('hybrid')" id="cstyle-hybrid" class="py-1.5 rounded-lg bg-cyan-500/20 text-cyan-200 border border-cyan-500/40 text-[10px] mono font-medium transition">Hybrid Pro</button>
+                    <button onclick="setCenterStyle('nation')" id="cstyle-nation" class="py-1.5 rounded-lg bg-white/5 text-slate-300 border border-white/10 text-[10px] mono font-medium transition">Nation Wave</button>
+                    <button onclick="setCenterStyle('bars')" id="cstyle-bars" class="py-1.5 rounded-lg bg-white/5 text-slate-300 border border-white/10 text-[10px] mono font-medium transition">Radial Bars</button>
+                </div>
+            </div>
+
+            <div>
+                <div class="flex justify-between text-[11px] mb-1">
+                    <span class="text-slate-300">Centre Disc Opacity</span>
+                    <span id="val-disc-opacity" class="mono text-cyan-400">92%</span>
+                </div>
+                <input id="param-disc-opacity" type="range" min="0" max="100" value="92">
+            </div>
+            <div>
+                <div class="flex justify-between text-[11px] mb-1">
+                    <span class="text-slate-300">Centre Size</span>
+                    <span id="val-center-scale" class="mono text-cyan-400">100%</span>
+                </div>
+                <input id="param-center-scale" type="range" min="60" max="130" value="100">
+            </div>
+            <label class="flex items-center justify-between text-[11px] text-slate-300 bg-white/[0.02] px-2.5 py-2 rounded-xl border border-white/5 cursor-pointer">
+                <span>Remove logo's black background</span>
+                <input id="toggle-logo-key" type="checkbox" checked class="accent-cyan-400">
+            </label>
+
+            <div>
+                <div class="flex justify-between text-[11px] mb-1">
+                    <span class="text-slate-300">BG Image Opacity</span>
+                    <span id="val-bg-opacity" class="mono text-cyan-400">45%</span>
+                </div>
+                <input id="param-bg-opacity" type="range" min="0" max="100" value="45">
+            </div>
+
+            <!-- Scene timeline: background, shape and colour change at set times, live and in exports -->
+            <div class="flex flex-col gap-1.5 pt-1">
+                <span class="text-[10px] mono text-slate-400 uppercase">Scene Timeline</span>
+                <button onclick="addSceneAtPlayhead()" class="py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-200 border border-cyan-500/30 text-[11px] font-medium transition">＋ Add scene at playhead</button>
+                <div id="scene-list" class="flex flex-col gap-1"></div>
+                <span class="text-[10px] text-slate-500 leading-snug">Set the background, shape and colour, scrub to where the scene starts, then add it. Scenes cross-fade in playback and in exports.</span>
+            </div>
+        </div>
+
+        <hr class="border-white/10">
+
+        <!-- 03. 3D Particle Shader Topologies -->
+        <div class="flex flex-col gap-1.5">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mono">03 // 3D Shader Topology</span>
+            <button onclick="setTopology(0)" id="topo-0" class="topo-btn py-2 px-2.5 rounded-xl text-xs font-medium text-left transition bg-cyan-500/20 text-cyan-200 border border-cyan-500/40 flex items-center justify-between">
+                <span>01. Fluid Galaxy Vortex</span>
+            </button>
+            <button onclick="setTopology(1)" id="topo-1" class="topo-btn py-2 px-2.5 rounded-xl text-xs font-medium text-left bg-white/[0.03] text-slate-300 hover:bg-white/10 border border-white/5 transition flex items-center justify-between">
+                <span>02. Harmonic Cymatic Sphere</span>
+            </button>
+            <button onclick="setTopology(2)" id="topo-2" class="topo-btn py-2 px-2.5 rounded-xl text-xs font-medium text-left bg-white/[0.03] text-slate-300 hover:bg-white/10 border border-white/5 transition flex items-center justify-between">
+                <span>03. Quantum Torus Lattice</span>
+            </button>
+            <button onclick="setTopology(3)" id="topo-3" class="topo-btn py-2 px-2.5 rounded-xl text-xs font-medium text-left bg-white/[0.03] text-slate-300 hover:bg-white/10 border border-white/5 transition flex items-center justify-between">
+                <span>04. Cymatic Wave Plane</span>
+            </button>
+            <button onclick="setTopology(4)" id="topo-4" class="topo-btn py-2 px-2.5 rounded-xl text-xs font-medium text-left bg-white/[0.03] text-slate-300 hover:bg-white/10 border border-white/5 transition flex items-center justify-between">
+                <span>05. DNA Double Helix</span>
+            </button>
+            <button onclick="setTopology(5)" id="topo-5" class="topo-btn py-2 px-2.5 rounded-xl text-xs font-medium text-left bg-white/[0.03] text-slate-300 hover:bg-white/10 border border-white/5 transition flex items-center justify-between">
+                <span>06. Black Hole Accretion Disk</span>
+            </button>
+            <button onclick="setTopology(6)" id="topo-6" class="topo-btn py-2 px-2.5 rounded-xl text-xs font-medium text-left bg-white/[0.03] text-slate-300 hover:bg-white/10 border border-white/5 transition flex items-center justify-between">
+                <span>07. Lorenz Chaos Attractor</span>
+            </button>
+        </div>
+    </aside>
+
+    <aside id="right-panel" class="fixed top-20 right-4 bottom-28 w-80 max-w-[calc(100vw-2rem)] z-20 glass-panel rounded-2xl p-4 flex flex-col gap-3.5 overflow-y-auto transition-all duration-300">
+        <!-- 04. Interactive XY Filter & Delay Pad -->
+        <div class="flex flex-col gap-2">
+            <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mono">04 // XY Filter & Delay Pad</span>
+                <span id="xy-coords" class="text-[10px] mono text-cyan-400">Cut: 4.2kHz, Res: 4.0</span>
+            </div>
+            <div id="xy-pad" class="relative w-full h-28 rounded-xl bg-slate-950/80 border border-white/10 cursor-crosshair overflow-hidden">
+                <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(#06b6d4 1px, transparent 1px); background-size: 12px 12px;"></div>
+                <div id="xy-handle" class="absolute w-4 h-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-400 shadow-[0_0_15px_#06b6d4] border-2 border-white pointer-events-none" style="left: 35%; top: 30%;"></div>
+            </div>
+        </div>
+
+        <!-- 05. 16-Step Arpeggiator & Kick Sequencer -->
+        <div class="flex flex-col gap-2">
+            <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mono">05 // 16-Step Sequencer</span>
+                <button onclick="toggleSequencer()" id="seq-toggle-btn" class="text-[10px] mono px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">Run: ON</button>
+            </div>
+            <div id="seq-grid" class="grid grid-cols-8 gap-1"></div>
+        </div>
+
+        <hr class="border-white/10">
+
+        <!-- 06. Particle Engine & Spectrum Overlay Customizer -->
+        <div class="flex flex-col gap-2.5">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mono">06 // Shader & Spectrum FX</span>
+
+            <div>
+                <div class="flex justify-between text-xs mb-1">
+                    <span class="text-slate-300">Particle Density</span>
+                    <span id="val-particles" class="mono text-cyan-400">55k</span>
+                </div>
+                <input id="param-particles" type="range" min="15000" max="90000" step="5000" value="55000">
+            </div>
+
+            <div>
+                <div class="flex justify-between text-xs mb-1">
+                    <span class="text-slate-300">Audio Reactivity Gain</span>
+                    <span id="val-reactivity" class="mono text-cyan-400">1.8x</span>
+                </div>
+                <input id="param-reactivity" type="range" min="0.5" max="3.5" step="0.1" value="1.8">
+            </div>
+
+            <!-- Audio Spectrum Analyzer Controls -->
+            <div class="flex flex-col gap-1.5 pt-1">
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] mono text-slate-400">SPECTRUM OVERLAY COLOR</span>
+                    <label class="flex items-center gap-1 text-[10px] text-slate-300 cursor-pointer">
+                        <input id="toggle-spectrum" type="checkbox" checked class="accent-cyan-400">
+                        <span>Show</span>
+                    </label>
+                </div>
+                <div class="grid grid-cols-5 gap-1.5">
+                    <button onclick="setSpectrumColor('#06b6d4')" class="py-1 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[10px] mono">Cyan</button>
+                    <button onclick="setSpectrumColor('#fbbf24')" class="py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] mono">Gold</button>
+                    <button onclick="setSpectrumColor('#10b981')" class="py-1 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] mono">Green</button>
+                    <button onclick="setSpectrumColor('#d946ef')" class="py-1 rounded bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 text-[10px] mono">Neon</button>
+                    <button onclick="setSpectrumColor('rainbow')" class="py-1 rounded bg-gradient-to-r from-cyan-500/30 via-fuchsia-500/30 to-amber-500/30 text-white border border-white/20 text-[10px] mono">Multi</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-1.5 mt-1">
+                <label class="flex items-center justify-between text-[11px] text-slate-300 bg-white/[0.02] px-2.5 py-2 rounded-xl border border-white/5 cursor-pointer">
+                    <span>Kaleido 6x</span>
+                    <input id="toggle-kaleido" type="checkbox" class="accent-cyan-400">
+                </label>
+                <label class="flex items-center justify-between text-[11px] text-slate-300 bg-white/[0.02] px-2.5 py-2 rounded-xl border border-white/5 cursor-pointer">
+                    <span>Bass Shake</span>
+                    <input id="toggle-shake" type="checkbox" checked class="accent-cyan-400">
+                </label>
+                <label class="col-span-2 flex items-center justify-between text-[11px] text-slate-300 bg-white/[0.02] px-2.5 py-2 rounded-xl border border-white/5 cursor-pointer" title="Fire the shockwave on detected kick drums and drops">
+                    <span>Auto Drops (beat detection)</span>
+                    <input id="toggle-autodrops" type="checkbox" checked class="accent-cyan-400">
+                </label>
+            </div>
+        </div>
+    </aside>
+
+    <footer id="piano-dock" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 glass-panel px-4 py-2.5 rounded-2xl flex flex-col items-center gap-2 w-[92vw] max-w-2xl transition-all duration-300">
+        <div class="w-full flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] mono uppercase tracking-wider text-slate-400">POLY SYNTH DOCK</span>
+                <div class="flex items-center gap-1 text-[10px] mono bg-white/5 px-2 py-0.5 rounded-lg border border-white/10">
+                    <button onclick="adjustOctave(-1)" class="text-slate-400 hover:text-white px-1">-</button>
+                    <span class="text-cyan-300">OCT <span id="synth-octave">4</span></span>
+                    <button onclick="adjustOctave(1)" class="text-slate-400 hover:text-white px-1">+</button>
+                </div>
+            </div>
+            <canvas id="spectrum-canvas" class="h-6 w-48 sm:w-64 rounded bg-slate-950/60 border border-white/5"></canvas>
+            <span class="text-[10px] mono text-slate-400 hidden sm:inline">Keys: A - K / Spacebar</span>
+        </div>
+
+        <div class="flex items-center justify-center gap-1.5 w-full overflow-x-auto pb-0.5 pt-0.5" id="piano-keyboard"></div>
+    </footer>
+
+    <script>
+        let audioCtx = null;
+        let masterFilter = null;
+        let delayNode = null;
+        let delayFeedback = null;
+        let masterGain = null;
+        let mediaStreamDest = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+
+        let audioElement = null;
+        let audioSourceNode = null;
+        let micStream = null;
+        let analyser = null;
+        let freqData = null;
+        // Unsmoothed copy of the spectrum for beat detection (the display analyser's smoothing blurs kick attacks).
+        let beatAnalyser = null;
+        let beatData = null;
+        let bassAnalyser = null;
+        let bassDbData = null;
+        let isAudioRunning = false;
+        let audioSourceMode = 'synth';
+
+        let scene, camera, renderer;
+        let particleSystem, particleGeo, particleMat, shaderUniforms;
+        let coreMesh, innerOrbMesh;
+        let spectrumCanvas, spectrumCtx;
+        let overlaySpectrumCanvas, overlaySpectrumCtx;
+        let radialCanvas, radialCtx;
+        let centerLogoImg = null;
+        let centerLogoLoaded = false;
+        let bgImageObj = null;
+        let bgImageLoaded = false;
+        let compositeCanvas = null;
+        let compositeCtx = null;
+
+        // Visualizer State & Uniforms
+        let currentTopology = 0;
+        let camSpherical = { radius: 55, theta: 0.8, phi: 1.1 };
+        let isDraggingCanvas = false;
+        let prevPointer = { x: 0, y: 0 };
+        const pointerWorld = new THREE.Vector3();
+        let isAttractorActive = false;
+        let shockwavePulse = 0.0;
+        let activeOctave = 4;
+        let sequencerRunning = true;
+        let activeSequencerStep = 0;
+        let lastStepTime = 0;
+
+        let params = {
+            particleCount: 55000,
+            reactivity: 1.8,
+            bgOpacity: 0.45,
+            bgPulse: true,
+            showSpectrumOverlay: true,
+            kaleidoscope: false,
+            cameraShake: true,
+            spectrumColor: '#06b6d4',
+            centerStyle: 'hybrid',
+            autoDrops: true,
+            discOpacity: 0.92,   // the dark disc behind the logo (0 = fully see-through)
+            centerScale: 1.0,    // size of the centre circle
+            logoKeyBlack: true   // make the logo's black background transparent
+        };
+        let kickEnv = 0;         // fast-attack pulse on each kick (from the beat tracker)
+        let centerLogoKeyed = null;
+
+        // ?export=local: js/export.js drives this page frame by frame inside an iframe at the export size.
+        const EXPORT_JOB = new URLSearchParams(location.search).get('export');
+        let currentLocalFile = null;
+
+        // Scene timeline: [{at, bg (data URL or null), bgImg, topology, color}], sorted by time.
+        let sceneTimeline = [];
+        let activeScene = -1;
+        let bgFade = { from: null, mix: 1 };   // export composite: the previous background fades out
+
+        const NOTE_FREQS = {
+            'C': 261.63, 'C#': 277.18, 'D': 293.66, 'D#': 311.13,
+            'E': 329.63, 'F': 349.23, 'F#': 369.99, 'G': 392.00,
+            'G#': 415.30, 'A': 440.00, 'A#': 466.16, 'B': 493.88
+        };
+
+        const ARP_SCALE = ['C', 'E', 'G', 'B', 'C5', 'G', 'E', 'D'];
+        let seqStepValues = [1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1];
+        let smoothedRadialBins = new Float32Array(64);
+        let pulseRings = [];
+
+        const PIANO_LAYOUT = [
+            { note: 'C', key: 'a', isSharp: false },
+            { note: 'C#', key: 'w', isSharp: true },
+            { note: 'D', key: 's', isSharp: false },
+            { note: 'D#', key: 'e', isSharp: true },
+            { note: 'E', key: 'd', isSharp: false },
+            { note: 'F', key: 'f', isSharp: false },
+            { note: 'F#', key: 't', isSharp: true },
+            { note: 'G', key: 'g', isSharp: false },
+            { note: 'G#', key: 'y', isSharp: true },
+            { note: 'A', key: 'h', isSharp: false },
+            { note: 'A#', key: 'u', isSharp: true },
+            { note: 'B', key: 'j', isSharp: false },
+            { note: 'C5', key: 'k', isSharp: false }
+        ];
+
+        function ensureAudioContext() {
+            if (!audioCtx) {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioCtx();
+
+                masterFilter = audioCtx.createBiquadFilter();
+                masterFilter.type = 'lowpass';
+                masterFilter.frequency.value = 4200;
+                masterFilter.Q.value = 4.0;
+
+                delayNode = audioCtx.createDelay(2.0);
+                delayNode.delayTime.value = 0.24;
+
+                delayFeedback = audioCtx.createGain();
+                delayFeedback.gain.value = 0.32;
+
+                masterGain = audioCtx.createGain();
+                masterGain.gain.value = 0.85;
+
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 1024;
+                analyser.smoothingTimeConstant = 0.7;
+                freqData = new Uint8Array(analyser.frequencyBinCount);
+
+                masterFilter.connect(masterGain);
+                masterFilter.connect(delayNode);
+                delayNode.connect(delayFeedback);
+                delayFeedback.connect(delayNode);
+                delayNode.connect(masterGain);
+
+                masterGain.connect(analyser);
+                analyser.connect(audioCtx.destination);
+
+                beatAnalyser = audioCtx.createAnalyser();
+                beatAnalyser.fftSize = 1024;
+                beatAnalyser.smoothingTimeConstant = 0;
+                beatData = new Uint8Array(beatAnalyser.frequencyBinCount);
+
+                // Centre size: deep bass (25-130 Hz) from a long window (16384 samples, about a third of a second),
+                // which smooths the level over time so the centre glides rather than jumps. Approach after
+                // caseif/js.nation (reimplemented, not copied).
+                bassAnalyser = audioCtx.createAnalyser();
+                bassAnalyser.fftSize = 16384;
+                bassAnalyser.smoothingTimeConstant = 0.1;
+                bassDbData = new Float32Array(bassAnalyser.frequencyBinCount);
+                masterGain.connect(bassAnalyser);
+                masterGain.connect(beatAnalyser);
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function formatTime(sec) {
+            if (!isFinite(sec) || sec < 0) return '0:00';
+            const m = Math.floor(sec / 60);
+            const s = Math.floor(sec % 60);
+            return `${m}:${String(s).padStart(2, '0')}`;
+        }
+
+        function updatePlayButtonUI() {
+            const btn = document.getElementById('audio-toggle-btn');
+            if (!btn) return;
+            if (isAudioRunning) {
+                btn.innerHTML = '<span>⏸ Pause</span>';
+                btn.className = 'px-3.5 py-1.5 rounded-xl bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-300 border border-emerald-500/40 text-xs font-semibold mono transition flex items-center gap-1.5';
+            } else {
+                btn.innerHTML = '<span>▶ Play</span>';
+                btn.className = 'px-3.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-semibold mono transition flex items-center gap-1.5';
+            }
+        }
+
+        function toggleAudioEngine() {
+            ensureAudioContext();
+            isAudioRunning = !isAudioRunning;
+
+            if (isAudioRunning) {
+                if (audioSourceMode === 'file' && audioElement) {
+                    if (audioElement.ended) audioElement.currentTime = 0;
+                    audioElement.play().catch(() => {});
+                }
+            } else {
+                if (audioElement) {
+                    audioElement.pause();
+                }
+            }
+            updatePlayButtonUI();
+        }
+
+        function restartTrack() {
+            ensureAudioContext();
+            if (audioElement && audioSourceMode === 'file') {
+                audioElement.currentTime = 0;
+                if (!isAudioRunning) {
+                    isAudioRunning = true;
+                    updatePlayButtonUI();
+                }
+                audioElement.play().catch(() => {});
+            } else {
+                activeSequencerStep = 0;
+                if (!isAudioRunning) {
+                    isAudioRunning = true;
+                    updatePlayButtonUI();
+                }
+            }
+        }
+
+        function seekAudioTrack(percentVal) {
+            if (audioElement && audioSourceMode === 'file' && isFinite(audioElement.duration) && audioElement.duration > 0) {
+                audioElement.currentTime = (parseFloat(percentVal) / 100) * audioElement.duration;
+            }
+        }
+
+        async function setAudioSource(mode) {
+            ensureAudioContext();
+            audioSourceMode = mode;
+
+            ['synth', 'mic', 'file'].forEach(m => {
+                const el = document.getElementById(`src-${m}`);
+                if (!el) return;
+                if (m === mode) {
+                    el.className = 'py-2 px-2 rounded-xl text-xs font-medium bg-cyan-500/20 text-cyan-200 border border-cyan-500/40 transition';
+                } else {
+                    el.className = 'py-2 px-2 rounded-xl text-xs font-medium bg-white/[0.03] text-slate-300 hover:bg-white/10 border border-white/5 transition';
+                }
+            });
+
+            if (audioElement && mode !== 'file') {
+                audioElement.pause();
+            }
+
+            if (mode === 'synth') {
+                document.getElementById('audio-mode-badge').textContent = 'SYNTH 124 BPM';
+                if (!isAudioRunning) toggleAudioEngine();
+            } else if (mode === 'mic') {
+                document.getElementById('audio-mode-badge').textContent = 'LIVE MICROPHONE';
+                try {
+                    if (!micStream) {
+                        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        const micSource = audioCtx.createMediaStreamSource(micStream);
+                        micSource.connect(analyser);
+                        micSource.connect(beatAnalyser);
+                        micSource.connect(bassAnalyser);
+                    }
+                    if (!isAudioRunning) toggleAudioEngine();
+                } catch (err) {
+                    console.warn('Microphone access denied or unavailable:', err);
+                    setAudioSource('synth');
+                }
+            } else if (mode === 'file') {
+                document.getElementById('audio-mode-badge').textContent = 'AUDIO TRACK';
+            }
+        }
+
+        function handleAudioFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            currentLocalFile = file;
+            loadAudioUrl(URL.createObjectURL(file), file.name);
+        }
+
+        function loadAudioUrl(url, fileName) {
+            ensureAudioContext();
+
+            if (!audioElement) {
+                audioElement = new Audio();
+                audioElement.crossOrigin = 'anonymous';
+                audioElement.loop = false;
+                audioSourceNode = audioCtx.createMediaElementSource(audioElement);
+                audioSourceNode.connect(masterGain);
+
+                audioElement.addEventListener('loadedmetadata', () => {
+                    document.getElementById('track-time-total').textContent = formatTime(audioElement.duration);
+                });
+
+                audioElement.addEventListener('timeupdate', () => {
+                    if (!audioElement.duration) return;
+                    document.getElementById('track-time-current').textContent = formatTime(audioElement.currentTime);
+                    const pct = (audioElement.currentTime / audioElement.duration) * 100;
+                    const scrubber = document.getElementById('track-scrubber');
+                    if (scrubber && document.activeElement !== scrubber) {
+                        scrubber.value = pct;
+                    }
+                });
+
+                audioElement.addEventListener('ended', () => {
+                    isAudioRunning = false;
+                    updatePlayButtonUI();
+                    if (isRecording && mediaRecorder && mediaRecorder.state !== 'inactive') {
+                        stopVideoRecording();
+                    }
+                });
+            }
+
+            audioElement.src = url;
+
+            const cleanName = fileName.replace(/\.[^/.]+$/, '');
+            document.getElementById('input-title').value = cleanName;
+            const headerTitle = document.getElementById('header-track-title');
+            if (headerTitle) headerTitle.value = cleanName;
+            updateMetaDisplay();
+
+            setAudioSource('file');
+            isAudioRunning = true;
+            audioElement.play().catch(() => {});
+            updatePlayButtonUI();
+        }
+
+        function handleBgImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const url = URL.createObjectURL(file);
+
+            const img = new Image();
+            img.onload = () => {
+                bgImageObj = img;
+                bgImageLoaded = true;
+            };
+            img.src = url;
+
+            const bgLayer = document.getElementById('bg-image-layer');
+            bgLayer.style.backgroundImage = `url('${url}')`;
+            bgLayer.style.opacity = params.bgOpacity;
+
+            const thumb = document.getElementById('cover-art-thumb');
+            thumb.style.backgroundImage = `url('${url}')`;
+            thumb.style.backgroundSize = 'cover';
+            thumb.style.backgroundPosition = 'center';
+            const icon = document.getElementById('cover-default-icon');
+            if (icon) icon.style.display = 'none';
+        }
+
+        function clearBgImage() {
+            bgImageObj = null;
+            bgImageLoaded = false;
+            const bgLayer = document.getElementById('bg-image-layer');
+            bgLayer.style.backgroundImage = 'none';
+            const thumb = document.getElementById('cover-art-thumb');
+            thumb.style.backgroundImage = 'none';
+            const icon = document.getElementById('cover-default-icon');
+            if (icon) icon.style.display = 'block';
+        }
+
+        function keyOutBlack(img) {
+            const c = document.createElement('canvas');
+            c.width = img.naturalWidth || img.width;
+            c.height = img.naturalHeight || img.height;
+            const ctx = c.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const data = ctx.getImageData(0, 0, c.width, c.height);
+            const px = data.data;
+            for (let i = 0; i < px.length; i += 4) {
+                const m = Math.max(px[i], px[i + 1], px[i + 2]);
+                const a = Math.max(0, Math.min(255, (m - 14) * 1.15));
+                if (m > 0) {
+                    const k = 255 / m;
+                    px[i] = Math.min(255, px[i] * k); px[i + 1] = Math.min(255, px[i + 1] * k); px[i + 2] = Math.min(255, px[i + 2] * k);
+                }
+                px[i + 3] = Math.round(a * (px[i + 3] / 255));
+            }
+            ctx.putImageData(data, 0, 0);
+            return c;
+        }
+
+        function handleLogoImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const url = URL.createObjectURL(file);
+            const img = new Image();
+            img.onload = () => {
+                centerLogoImg = img;
+                centerLogoKeyed = keyOutBlack(img);
+                centerLogoLoaded = true;
+            };
+            img.src = url;
+        }
+
+        function clearLogoImage() {
+            centerLogoImg = null;
+            centerLogoLoaded = false;
+        }
+
+        function setCenterStyle(style) {
+            params.centerStyle = style;
+            ['hybrid', 'nation', 'bars'].forEach(s => {
+                const btn = document.getElementById(`cstyle-${s}`);
+                if (!btn) return;
+                if (s === style) {
+                    btn.className = 'py-1.5 rounded-lg bg-cyan-500/20 text-cyan-200 border border-cyan-500/40 text-[10px] mono font-medium transition';
+                } else {
+                    btn.className = 'py-1.5 rounded-lg bg-white/5 text-slate-300 border border-white/10 text-[10px] mono font-medium transition';
+                }
+            });
+        }
+
+        function renderCenterCircleSpectrum(elapsed, bass, mid, treble, dt = 1 / 60) {
+            if (!radialCtx || !radialCanvas) return;
+            const w = radialCanvas.width;
+            const h = radialCanvas.height;
+            radialCtx.clearRect(0, 0, w, h);
+
+            const cx = w * 0.5;
+            const cy = h * 0.5;
+            const minDim = Math.min(w, h);
+            const baseRadius = Math.max(68, Math.min(138, minDim * 0.145)) * params.centerScale;
+            // Mostly the kick pulse (instant on each hit), a little of the bass level, plus drops.
+            const dynamicRadius = baseRadius * (1.0 + kickEnv * 0.22 + shockwavePulse * 0.1);
+
+            if ((bass > 0.52 || shockwavePulse > 0.4) && (pulseRings.length === 0 || pulseRings[pulseRings.length - 1].radius > dynamicRadius + 24)) {
+                pulseRings.push({ radius: dynamicRadius, alpha: 0.75 });
+            }
+            for (let i = pulseRings.length - 1; i >= 0; i--) {
+                const pr = pulseRings[i];
+                pr.radius += (2.8 + bass * 5.5) * dt * 60;
+                pr.alpha *= Math.pow(0.955, dt * 60);
+                if (pr.alpha < 0.02) {
+                    pulseRings.splice(i, 1);
+                    continue;
+                }
+                radialCtx.save();
+                radialCtx.beginPath();
+                radialCtx.arc(cx, cy, pr.radius, 0, Math.PI * 2);
+                radialCtx.strokeStyle = params.spectrumColor === 'rainbow'
+                    ? `hsla(${(elapsed * 60 + i * 30) % 360}, 90%, 65%, ${pr.alpha})`
+                    : params.spectrumColor;
+                radialCtx.globalAlpha = pr.alpha * 0.55;
+                radialCtx.lineWidth = 2.0;
+                radialCtx.stroke();
+                radialCtx.restore();
+            }
+
+            const numHalf = 64;
+            const keep = Math.pow(0.6, dt * 60);
+            for (let i = 0; i < numHalf; i++) {
+                let targetVal = 0;
+                if (isAudioRunning && freqData) {
+                    const binIdx = Math.min(360, Math.floor(Math.pow(i / numHalf, 1.45) * 260) + 2);
+                    targetVal = (freqData[binIdx] / 255) * params.reactivity * 0.78;
+                } else {
+                    targetVal = 0.10 + 0.08 * Math.sin(elapsed * 3.4 + i * 0.28) + 0.05 * Math.cos(elapsed * 5.1 - i * 0.15);
+                }
+                smoothedRadialBins[i] = smoothedRadialBins[i] * keep + targetVal * (1 - keep);
+            }
+
+            const totalPts = numHalf * 2;
+            const mirrored = new Float32Array(totalPts);
+            for (let i = 0; i < numHalf; i++) {
+                mirrored[i] = smoothedRadialBins[i];
+                mirrored[totalPts - 1 - i] = smoothedRadialBins[i];
+            }
+
+            const primaryColor = params.spectrumColor === 'rainbow'
+                ? `hsl(${(elapsed * 50) % 360}, 92%, 60%)`
+                : params.spectrumColor;
+
+            if (params.centerStyle === 'hybrid' || params.centerStyle === 'nation') {
+                const waveLayers = [
+                    { scale: 1.38, phase: 0.0, color: 'rgba(217, 70, 239, 0.45)', fill: 'rgba(217, 70, 239, 0.12)', blur: 22 },
+                    { scale: 1.18, phase: 0.04, color: 'rgba(56, 189, 248, 0.65)', fill: 'rgba(6, 182, 212, 0.16)', blur: 16 },
+                    { scale: 0.96, phase: -0.03, color: '#ffffff', fill: 'rgba(255, 255, 255, 0.10)', blur: 10 }
+                ];
+
+                waveLayers.forEach((layer, lIdx) => {
+                    radialCtx.save();
+                    radialCtx.beginPath();
+
+                    const pts = [];
+                    for (let i = 0; i < totalPts; i++) {
+                        const angle = (i / totalPts) * Math.PI * 2 - Math.PI * 0.5 + layer.phase + Math.sin(elapsed * 0.5 + lIdx) * 0.08;
+                        const amp = mirrored[i] * baseRadius * 0.85 * layer.scale;
+                        const r = dynamicRadius + amp;
+                        pts.push({
+                            x: cx + Math.cos(angle) * r,
+                            y: cy + Math.sin(angle) * r
+                        });
+                    }
+
+                    const len = pts.length;
+                    const startMidX = (pts[len - 1].x + pts[0].x) * 0.5;
+                    const startMidY = (pts[len - 1].y + pts[0].y) * 0.5;
+                    radialCtx.moveTo(startMidX, startMidY);
+
+                    for (let i = 0; i < len; i++) {
+                        const next = pts[(i + 1) % len];
+                        const midX = (pts[i].x + next.x) * 0.5;
+                        const midY = (pts[i].y + next.y) * 0.5;
+                        radialCtx.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
+                    }
+                    radialCtx.closePath();
+
+                    const strokeCol = (lIdx === 1 && params.spectrumColor !== 'rainbow') ? primaryColor : layer.color;
+                    radialCtx.fillStyle = layer.fill;
+                    radialCtx.fill();
+                    radialCtx.lineWidth = lIdx === 2 ? 2.2 : 2.8;
+                    radialCtx.strokeStyle = strokeCol;
+                    radialCtx.shadowColor = strokeCol;
+                    radialCtx.shadowBlur = layer.blur;
+                    radialCtx.stroke();
+                    radialCtx.restore();
+                });
+            }
+
+            if (params.centerStyle === 'hybrid' || params.centerStyle === 'bars') {
+                const barMultiplier = params.centerStyle === 'bars' ? 1.15 : 0.78;
+                const rainbow = params.spectrumColor === 'rainbow';
+                const bars = [], dots = [];
+                for (let i = 0; i < totalPts; i += 2) {
+                    const angle = (i / totalPts) * Math.PI * 2 - Math.PI * 0.5;
+                    const val = mirrored[i];
+                    const barHeight = Math.max(4, val * baseRadius * 0.95 * barMultiplier);
+                    const rInner = dynamicRadius + 4;
+                    const rOuter = rInner + barHeight;
+                    bars.push([cx + Math.cos(angle) * rInner, cy + Math.sin(angle) * rInner, cx + Math.cos(angle) * rOuter, cy + Math.sin(angle) * rOuter, i]);
+                    if (val > 0.22) {
+                        const dotR = rOuter + 7 + val * 6;
+                        dots.push([cx + Math.cos(angle) * dotR, cy + Math.sin(angle) * dotR]);
+                    }
+                }
+                radialCtx.save();
+                radialCtx.lineWidth = 2.6;
+                radialCtx.lineCap = 'round';
+                if (rainbow) {
+                    // A colour per bar, with a lighter glow.
+                    radialCtx.shadowBlur = 6;
+                    for (const [x1, y1, x2, y2, i] of bars) {
+                        const c = `hsl(${(i / totalPts) * 360 + elapsed * 60}, 95%, 62%)`;
+                        radialCtx.strokeStyle = c;
+                        radialCtx.shadowColor = c;
+                        radialCtx.beginPath();
+                        radialCtx.moveTo(x1, y1);
+                        radialCtx.lineTo(x2, y2);
+                        radialCtx.stroke();
+                    }
+                } else {
+                    radialCtx.strokeStyle = primaryColor;
+                    radialCtx.shadowColor = primaryColor;
+                    radialCtx.shadowBlur = 10;
+                    radialCtx.beginPath();
+                    for (const [x1, y1, x2, y2] of bars) {
+                        radialCtx.moveTo(x1, y1);
+                        radialCtx.lineTo(x2, y2);
+                    }
+                    radialCtx.stroke();
+                }
+                radialCtx.shadowBlur = 0;
+                radialCtx.fillStyle = '#ffffff';
+                radialCtx.beginPath();
+                for (const [dx, dy] of dots) {
+                    radialCtx.moveTo(dx + 1.8, dy);
+                    radialCtx.arc(dx, dy, 1.8, 0, Math.PI * 2);
+                }
+                radialCtx.fill();
+                radialCtx.restore();
+            }
+
+            radialCtx.save();
+            radialCtx.beginPath();
+            radialCtx.arc(cx, cy, dynamicRadius, 0, Math.PI * 2);
+            radialCtx.closePath();
+
+            const coreGrad = radialCtx.createRadialGradient(cx, cy, dynamicRadius * 0.1, cx, cy, dynamicRadius);
+            coreGrad.addColorStop(0, `rgba(15, 23, 42, ${params.discOpacity})`);
+            coreGrad.addColorStop(1, `rgba(3, 7, 18, ${Math.min(1, params.discOpacity * 1.05)})`);
+            radialCtx.fillStyle = coreGrad;
+            radialCtx.fill();
+            radialCtx.clip();
+
+            if (centerLogoLoaded && centerLogoImg) {
+                const logoZoom = 1.0;
+                const drawSize = dynamicRadius * 2.0 * logoZoom;
+                radialCtx.drawImage(
+                    params.logoKeyBlack && centerLogoKeyed ? centerLogoKeyed : centerLogoImg,
+                    cx - drawSize * 0.5,
+                    cy - drawSize * 0.5,
+                    drawSize,
+                    drawSize
+                );
+            } else {
+                radialCtx.save();
+                radialCtx.translate(cx, cy);
+                radialCtx.rotate(elapsed * 0.25);
+
+                radialCtx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+                radialCtx.lineWidth = 1.5;
+                radialCtx.setLineDash([6, 8]);
+                radialCtx.beginPath();
+                radialCtx.arc(0, 0, dynamicRadius * 0.82, 0, Math.PI * 2);
+                radialCtx.stroke();
+                radialCtx.setLineDash([]);
+
+                const polyR = dynamicRadius * 0.56;
+                radialCtx.strokeStyle = primaryColor;
+                radialCtx.lineWidth = 2.0;
+                for (let t = 0; t < 2; t++) {
+                    radialCtx.beginPath();
+                    for (let k = 0; k < 3; k++) {
+                        const a = (k / 3) * Math.PI * 2 + (t * Math.PI);
+                        const px = Math.cos(a) * polyR;
+                        const py = Math.sin(a) * polyR;
+                        if (k === 0) radialCtx.moveTo(px, py);
+                        else radialCtx.lineTo(px, py);
+                    }
+                    radialCtx.closePath();
+                    radialCtx.stroke();
+                }
+                radialCtx.restore();
+
+                const titleInput = document.getElementById('header-track-title');
+                const artistInput = document.getElementById('header-artist-name');
+                const crestTitle = (titleInput && titleInput.value ? titleInput.value : 'AETHERFLUX').toUpperCase();
+                const crestSub = (artistInput && artistInput.value ? artistInput.value : 'AUDIO ENGINE').toUpperCase();
+
+                radialCtx.fillStyle = '#ffffff';
+                radialCtx.font = `700 ${Math.round(dynamicRadius * 0.17)}px 'Inter', sans-serif`;
+                radialCtx.textAlign = 'center';
+                radialCtx.textBaseline = 'middle';
+                radialCtx.shadowColor = primaryColor;
+                radialCtx.shadowBlur = 12;
+                radialCtx.fillText(crestTitle.slice(0, 14), cx, cy - dynamicRadius * 0.06);
+
+                radialCtx.fillStyle = primaryColor;
+                radialCtx.font = `500 ${Math.round(dynamicRadius * 0.105)}px 'JetBrains Mono', monospace`;
+                radialCtx.shadowBlur = 0;
+                radialCtx.fillText(crestSub.slice(0, 18), cx, cy + dynamicRadius * 0.15);
+            }
+            radialCtx.restore();
+
+            radialCtx.save();
+            radialCtx.beginPath();
+            radialCtx.arc(cx, cy, dynamicRadius, 0, Math.PI * 2);
+            radialCtx.strokeStyle = '#ffffff';
+            radialCtx.lineWidth = 2.8;
+            radialCtx.shadowColor = primaryColor;
+            radialCtx.shadowBlur = 18;
+            radialCtx.stroke();
+            radialCtx.restore();
+        }
+
+        function updateMetaDisplay() {
+            const artist = document.getElementById('input-artist').value || 'AetherFlux Studio';
+            const title = document.getElementById('input-title').value || 'Aetherial Pulse';
+            const headerArtist = document.getElementById('header-artist-name');
+            const headerTitle = document.getElementById('header-track-title');
+            if (headerArtist && document.activeElement !== headerArtist) headerArtist.value = artist;
+            if (headerTitle && document.activeElement !== headerTitle) headerTitle.value = title;
+        }
+
+        function syncMetaFromHeader() {
+            const headerArtist = document.getElementById('header-artist-name');
+            const headerTitle = document.getElementById('header-track-title');
+            const sideArtist = document.getElementById('input-artist');
+            const sideTitle = document.getElementById('input-title');
+            if (sideArtist && headerArtist) sideArtist.value = headerArtist.value;
+            if (sideTitle && headerTitle) sideTitle.value = headerTitle.value;
+        }
+
+        function buildPianoKeyboard() {
+            const container = document.getElementById('piano-keyboard');
+            if (!container) return;
+            container.innerHTML = '';
+
+            PIANO_LAYOUT.forEach(item => {
+                const btn = document.createElement('button');
+                btn.id = `key-${item.note}`;
+                btn.className = item.isSharp
+                    ? 'piano-key px-2.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-cyan-300 border border-cyan-500/30 text-xs mono flex flex-col items-center min-w-[38px]'
+                    : 'piano-key px-3 py-2.5 rounded-xl bg-white/[0.07] hover:bg-white/15 text-white border border-white/10 text-xs mono flex flex-col items-center min-w-[42px]';
+                btn.innerHTML = `
+                    <span class="font-bold">${item.note}</span>
+                    <span class="text-[9px] text-slate-400 uppercase mt-0.5">${item.key}</span>
+                `;
+                btn.onpointerdown = () => {
+                    const cleanNote = item.note.replace('5', '');
+                    const oct = item.note.includes('5') ? activeOctave + 1 : activeOctave;
+                    playSynthNote(cleanNote, oct);
+                    btn.classList.add('active');
+                    setTimeout(() => btn.classList.remove('active'), 140);
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function triggerKickDrum() {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(135, now);
+            osc.frequency.exponentialRampToValueAtTime(32, now + 0.14);
+
+            gain.gain.setValueAtTime(0.65, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+
+            osc.connect(gain);
+            gain.connect(masterGain);
+            osc.start(now);
+            osc.stop(now + 0.25);
+        }
+
+        const VERTEX_SHADER = `
+            uniform float uTime;
+            uniform float uBass;
+            uniform float uMid;
+            uniform float uTreble;
+            uniform float uTopology;
+            uniform float uTopologyB;
+            uniform float uMorph;
+            uniform float uShockwave;
+            uniform float uKaleido;
+            uniform float uAttractorStrength;
+            uniform vec3 uAttractorPos;
+            uniform vec3 uPrimaryColor;
+
+            attribute vec3 randomness;
+            varying vec3 vColor;
+            varying float vAlpha;
+
+            // Particle position for one topology (0-6). Scene changes blend two of them with uMorph.
+            vec3 topoPos(float topology, float rx, float ry, float rz, float t) {
+                vec3 pos = vec3(0.0);
+
+                if (topology < 0.5) {
+                    float angle = t * (0.35 + ry * 0.65) + rx * 6.2831853;
+                    float radius = 3.5 + pow(ry, 0.85) * 24.0 + uBass * 6.5 * sin(rx * 12.0 + t * 3.0);
+                    float spiral = radius * 0.28;
+                    pos.x = cos(angle + spiral) * radius;
+                    pos.z = sin(angle + spiral) * radius;
+                    pos.y = (rz - 0.5) * (10.0 / (1.0 + radius * 0.12)) + sin(radius * 0.45 - t * 3.5) * (uBass * 3.5 + uMid * 2.0);
+                } else if (topology < 1.5) {
+                    float theta = rx * 6.2831853;
+                    float phi = acos(2.0 * ry - 1.0);
+                    float harmonic = sin(theta * 6.0 + t * 2.5) * cos(phi * 5.0 - t * 2.0);
+                    float rad = 13.5 + harmonic * (2.2 + uBass * 6.5) + uTreble * 3.0 * sin(rz * 20.0 + t * 5.0);
+                    pos.x = rad * sin(phi) * cos(theta);
+                    pos.y = rad * cos(phi);
+                    pos.z = rad * sin(phi) * sin(theta);
+                } else if (topology < 2.5) {
+                    float u = rx * 6.2831853 + t * 0.4;
+                    float v = ry * 6.2831853 + t * 1.2;
+                    float R = 16.5 + sin(u * 4.0 + t * 2.0) * uBass * 3.0;
+                    float r = 5.2 + cos(v * 3.0 - t * 3.0) * (1.2 + uMid * 4.0);
+                    pos.x = (R + r * cos(v)) * cos(u);
+                    pos.y = r * sin(v) + sin(u * 5.0 + t * 2.5) * uBass * 2.5;
+                    pos.z = (R + r * cos(v)) * sin(u);
+                } else if (topology < 3.5) {
+                    float px = (rx - 0.5) * 48.0;
+                    float pz = (ry - 0.5) * 48.0;
+                    float dist = length(vec2(px, pz));
+                    pos.x = px;
+                    pos.z = pz;
+                    pos.y = sin(dist * 0.45 - t * 4.2) * (2.5 + uBass * 7.5) + cos(px * 0.25 + pz * 0.25 + t * 2.0) * uMid * 3.0;
+                } else if (topology < 4.5) {
+                    float h = (rx - 0.5) * 42.0;
+                    float twist = h * 0.32 + t * 1.8;
+                    float strand = ry > 0.5 ? 1.0 : -1.0;
+                    float rad = 8.5 + uBass * 3.8;
+                    if (rz < 0.18) {
+                        rad *= (rz / 0.18);
+                    }
+                    pos.x = cos(twist) * rad * strand;
+                    pos.y = h;
+                    pos.z = sin(twist) * rad * strand;
+                } else if (topology < 5.5) {
+                    if (rz > 0.86) {
+                        float jetSign = ry > 0.5 ? 1.0 : -1.0;
+                        float jetY = pow(rx, 0.7) * 30.0 * jetSign;
+                        float jetRad = (0.4 + abs(jetY) * 0.08) * (1.0 + uTreble * 1.5);
+                        float jetAng = t * 6.0 + ry * 6.28318;
+                        pos = vec3(cos(jetAng) * jetRad, jetY, sin(jetAng) * jetRad);
+                    } else {
+                        float diskRad = 4.8 + pow(rx, 1.4) * 26.0;
+                        float diskSpeed = 12.0 / pow(diskRad, 0.75);
+                        float ang = ry * 6.2831853 + t * diskSpeed;
+                        pos.x = cos(ang) * diskRad;
+                        pos.z = sin(ang) * diskRad;
+                        pos.y = (rz - 0.43) * (1.5 + uBass * 4.0) * exp(-diskRad * 0.08);
+                    }
+                } else {
+                    float p = rx * 6.2831853 * 4.0 + t * 0.85;
+                    float lobe = ry > 0.5 ? 1.0 : -1.0;
+                    float rL = 9.0 + 5.5 * sin(p * 1.5) + uBass * 4.5;
+                    pos.x = lobe * (8.5 + rL * cos(p)) + (rz - 0.5) * 2.2;
+                    pos.y = rL * sin(p) * 1.35 + (rz - 0.5) * 2.2;
+                    pos.z = 14.0 * sin(p * 0.5) * cos(p) + uMid * 4.0;
+                }
+                return pos;
+            }
+
+            void main() {
+                float rx = randomness.x;
+                float ry = randomness.y;
+                float rz = randomness.z;
+
+                float t = uTime;
+                vec3 pos = mix(topoPos(uTopology, rx, ry, rz, t), topoPos(uTopologyB, rx, ry, rz, t), smoothstep(0.0, 1.0, uMorph));
+
+                if (uKaleido > 0.5) {
+                    float a = atan(pos.z, pos.x);
+                    float r = length(pos.xz);
+                    float sector = 6.2831853 / 6.0;
+                    a = mod(a, sector);
+                    a = abs(a - sector * 0.5);
+                    pos.x = cos(a) * r;
+                    pos.z = sin(a) * r;
+                }
+
+                if (uAttractorStrength > 0.01) {
+                    vec3 toAttr = uAttractorPos - pos;
+                    float d = length(toAttr) + 1.5;
+                    pos += normalize(toAttr) * (uAttractorStrength * 18.0 / d);
+                }
+
+                if (uShockwave > 0.01) {
+                    vec3 dir = normalize(pos + vec3(0.0001));
+                    pos += dir * sin(length(pos) * 0.5 - (1.0 - uShockwave) * 18.0) * uShockwave * 11.0;
+                }
+
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                gl_Position = projectionMatrix * mvPosition;
+
+                float energy = clamp(uBass * 0.65 + uMid * 0.35 + uTreble * 0.4, 0.0, 2.5);
+                gl_PointSize = (65.0 + energy * 55.0 * rx) / -mvPosition.z;
+
+                vec3 hotColor = vec3(1.0, 0.45 + 0.4 * sin(t + rx * 6.0), 0.95);
+                vColor = mix(uPrimaryColor, hotColor, clamp(length(pos) / 28.0 + uBass * 0.45, 0.0, 1.0));
+                vAlpha = clamp(0.45 + ry * 0.55, 0.2, 1.0);
+            }
+        `;
+
+        const FRAGMENT_SHADER = `
+            varying vec3 vColor;
+            varying float vAlpha;
+
+            void main() {
+                vec2 uv = gl_PointCoord - vec2(0.5);
+                float d = length(uv);
+                if (d > 0.5) discard;
+                float glow = pow(1.0 - d * 2.0, 1.8);
+                gl_FragColor = vec4(vColor, glow * vAlpha);
+            }
+        `;
+
+        function initThree() {
+            const canvas = document.getElementById('webgl-canvas');
+            scene = new THREE.Scene();
+
+            camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 1000);
+            updateCameraOrbit();
+
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setClearColor(0x000000, 0);
+
+            buildParticleSystem();
+
+            radialCanvas = document.getElementById('center-radial-canvas');
+            radialCanvas.width = window.innerWidth;
+            radialCanvas.height = window.innerHeight;
+            radialCtx = radialCanvas.getContext('2d');
+
+            spectrumCanvas = document.getElementById('spectrum-canvas');
+            spectrumCanvas.width = spectrumCanvas.offsetWidth || 260;
+            spectrumCanvas.height = 32;
+            spectrumCtx = spectrumCanvas.getContext('2d');
+
+            overlaySpectrumCanvas = document.getElementById('bottom-spectrum-overlay');
+            overlaySpectrumCanvas.width = window.innerWidth;
+            overlaySpectrumCanvas.height = 180;
+            overlaySpectrumCtx = overlaySpectrumCanvas.getContext('2d');
+
+            setupInteractionHandlers();
+            buildPianoKeyboard();
+            buildSequencerGrid();
+        }
+
+        function updateCameraOrbit() {
+            camSpherical.phi = Math.max(0.2, Math.min(Math.PI - 0.2, camSpherical.phi));
+            camSpherical.radius = Math.max(18, Math.min(110, camSpherical.radius));
+
+            camera.position.x = camSpherical.radius * Math.sin(camSpherical.phi) * Math.sin(camSpherical.theta);
+            camera.position.y = camSpherical.radius * Math.cos(camSpherical.phi);
+            camera.position.z = camSpherical.radius * Math.sin(camSpherical.phi) * Math.cos(camSpherical.theta);
+            camera.lookAt(0, 0, 0);
+        }
+
+        function buildParticleSystem() {
+            if (particleSystem) scene.remove(particleSystem);
+
+            const count = params.particleCount;
+            particleGeo = new THREE.BufferGeometry();
+            const positions = new Float32Array(count * 3);
+            const randomness = new Float32Array(count * 3);
+
+            for (let i = 0; i < count; i++) {
+                positions[i * 3]     = (Math.random() - 0.5) * 40;
+                positions[i * 3 + 1] = (Math.random() - 0.5) * 40;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * 40;
+
+                randomness[i * 3]     = Math.random();
+                randomness[i * 3 + 1] = Math.random();
+                randomness[i * 3 + 2] = Math.random();
+            }
+
+            particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            particleGeo.setAttribute('randomness', new THREE.BufferAttribute(randomness, 3));
+
+            const hexColor = params.spectrumColor === 'rainbow' ? '#06b6d4' : params.spectrumColor;
+
+            shaderUniforms = {
+                uTime: { value: 0 },
+                uBass: { value: 0.2 },
+                uMid: { value: 0.2 },
+                uTreble: { value: 0.2 },
+                uTopology: { value: currentTopology },
+                uTopologyB: { value: currentTopology },
+                uMorph: { value: 1.0 },
+                uShockwave: { value: 0.0 },
+                uKaleido: { value: params.kaleidoscope ? 1.0 : 0.0 },
+                uAttractorStrength: { value: 0.0 },
+                uAttractorPos: { value: new THREE.Vector3() },
+                uPrimaryColor: { value: new THREE.Color(hexColor) }
+            };
+
+            particleMat = new THREE.ShaderMaterial({
+                uniforms: shaderUniforms,
+                vertexShader: VERTEX_SHADER,
+                fragmentShader: FRAGMENT_SHADER,
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+
+            particleSystem = new THREE.Points(particleGeo, particleMat);
+            scene.add(particleSystem);
+        }
+
+        function playSynthNote(noteName, octave = 4, duration = 0.55) {
+            ensureAudioContext();
+            const freq = (NOTE_FREQS[noteName] || 261.63) * Math.pow(2, octave - 4);
+            const now = audioCtx.currentTime;
+
+            const osc1 = audioCtx.createOscillator();
+            const osc2 = audioCtx.createOscillator();
+            const noteGain = audioCtx.createGain();
+
+            osc1.type = 'sawtooth';
+            osc2.type = 'triangle';
+            osc1.frequency.setValueAtTime(freq, now);
+            osc2.frequency.setValueAtTime(freq * 0.5, now);
+
+            noteGain.gain.setValueAtTime(0.20, now);
+            noteGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+            osc1.connect(noteGain);
+            osc2.connect(noteGain);
+            noteGain.connect(masterFilter);
+
+            osc1.start(now);
+            osc2.start(now);
+            osc1.stop(now + duration + 0.05);
+            osc2.stop(now + duration + 0.05);
+        }
+
+        function triggerShockwave() {
+            shockwavePulse = 1.0;
+            if (isAudioRunning && audioCtx) {
+                triggerKickDrum();
+            }
+        }
+
+        function setSpectrumColor(hex) {
+            params.spectrumColor = hex;
+            const cssHex = hex === 'rainbow' ? '#06b6d4' : hex;
+            document.documentElement.style.setProperty('--accent', cssHex);
+            document.documentElement.style.setProperty('--accent-glow', cssHex + '75');
+            if (shaderUniforms) shaderUniforms.uPrimaryColor.value.set(cssHex);
+        }
+
+        function setupInteractionHandlers() {
+            const webglCanvas = document.getElementById('webgl-canvas');
+
+            webglCanvas.addEventListener('pointerdown', e => {
+                isDraggingCanvas = true;
+                isAttractorActive = (e.button === 0);
+                prevPointer.x = e.clientX;
+                prevPointer.y = e.clientY;
+            });
+
+            window.addEventListener('pointermove', e => {
+                const nx = (e.clientX / window.innerWidth) * 2 - 1;
+                const ny = -(e.clientY / window.innerHeight) * 2 + 1;
+                pointerWorld.set(nx * 24, ny * 16, 0);
+
+                if (isDraggingCanvas) {
+                    const dx = e.clientX - prevPointer.x;
+                    const dy = e.clientY - prevPointer.y;
+                    camSpherical.theta -= dx * 0.006;
+                    camSpherical.phi   -= dy * 0.006;
+                    updateCameraOrbit();
+                    prevPointer.x = e.clientX;
+                    prevPointer.y = e.clientY;
+                }
+            });
+
+            window.addEventListener('pointerup', () => {
+                isDraggingCanvas = false;
+                isAttractorActive = false;
+            });
+
+            webglCanvas.addEventListener('wheel', e => {
+                e.preventDefault();
+                camSpherical.radius += e.deltaY * 0.04;
+                updateCameraOrbit();
+            }, { passive: false });
+
+            const xyPad = document.getElementById('xy-pad');
+            const xyHandle = document.getElementById('xy-handle');
+            let isDraggingXY = false;
+
+            xyPad.addEventListener('pointerdown', e => {
+                isDraggingXY = true;
+                updateXYPad(e, xyPad, xyHandle);
+            });
+            window.addEventListener('pointermove', e => {
+                if (isDraggingXY) updateXYPad(e, xyPad, xyHandle);
+            });
+
+            document.getElementById('param-bg-opacity').addEventListener('input', e => {
+                params.bgOpacity = parseInt(e.target.value, 10) / 100;
+                document.getElementById('val-bg-opacity').textContent = `${e.target.value}%`;
+                document.getElementById('bg-image-layer').style.opacity = params.bgOpacity;
+            });
+
+            document.getElementById('param-disc-opacity').addEventListener('input', e => {
+                params.discOpacity = parseInt(e.target.value, 10) / 100;
+                document.getElementById('val-disc-opacity').textContent = `${e.target.value}%`;
+            });
+            document.getElementById('param-center-scale').addEventListener('input', e => {
+                params.centerScale = parseInt(e.target.value, 10) / 100;
+                document.getElementById('val-center-scale').textContent = `${e.target.value}%`;
+            });
+            document.getElementById('toggle-logo-key').addEventListener('change', e => {
+                params.logoKeyBlack = e.target.checked;
+            });
+
+            document.getElementById('param-particles').addEventListener('input', e => {
+                params.particleCount = parseInt(e.target.value, 10);
+                document.getElementById('val-particles').textContent = `${Math.round(params.particleCount / 1000)}k`;
+                buildParticleSystem();
+            });
+
+            document.getElementById('param-reactivity').addEventListener('input', e => {
+                params.reactivity = parseFloat(e.target.value);
+                document.getElementById('val-reactivity').textContent = `${params.reactivity.toFixed(1)}x`;
+            });
+
+            document.getElementById('toggle-spectrum').addEventListener('change', e => {
+                params.showSpectrumOverlay = e.target.checked;
+                if (overlaySpectrumCanvas) {
+                    overlaySpectrumCanvas.style.opacity = params.showSpectrumOverlay ? '1' : '0';
+                }
+            });
+
+            document.getElementById('toggle-kaleido').addEventListener('change', e => {
+                params.kaleidoscope = e.target.checked;
+                if (shaderUniforms) {
+                    shaderUniforms.uKaleido.value = params.kaleidoscope ? 1.0 : 0.0;
+                }
+            });
+
+            document.getElementById('toggle-shake').addEventListener('change', e => {
+                params.cameraShake = e.target.checked;
+            });
+
+            document.getElementById('toggle-autodrops').addEventListener('change', e => {
+                params.autoDrops = e.target.checked;
+            });
+
+            window.addEventListener('keydown', e => {
+                if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    triggerShockwave();
+                    return;
+                }
+                const key = e.key.toLowerCase();
+                const match = PIANO_LAYOUT.find(p => p.key === key);
+                if (match) {
+                    const cleanNote = match.note.replace('5', '');
+                    const oct = match.note.includes('5') ? activeOctave + 1 : activeOctave;
+                    playSynthNote(cleanNote, oct);
+                    const btn = document.getElementById(`key-${match.note}`);
+                    if (btn) {
+                        btn.classList.add('active');
+                        setTimeout(() => btn.classList.remove('active'), 140);
+                    }
+                }
+            });
+
+            window.addEventListener('resize', () => {
+                if (camera && renderer) {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                }
+                if (radialCanvas) {
+                    radialCanvas.width = window.innerWidth;
+                    radialCanvas.height = window.innerHeight;
+                }
+                if (overlaySpectrumCanvas) {
+                    overlaySpectrumCanvas.width = window.innerWidth;
+                }
+            });
+        }
+
+        function updateXYPad(e, pad, handle) {
+            const rect = pad.getBoundingClientRect();
+            const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+            handle.style.left = `${(x * 100).toFixed(1)}%`;
+            handle.style.top = `${(y * 100).toFixed(1)}%`;
+
+            ensureAudioContext();
+            const cutoff = 180 + Math.pow(x, 2.2) * 11000;
+            const res = 0.8 + (1.0 - y) * 12.0;
+            if (masterFilter && audioCtx) {
+                masterFilter.frequency.setTargetAtTime(cutoff, audioCtx.currentTime, 0.03);
+                masterFilter.Q.setTargetAtTime(res, audioCtx.currentTime, 0.03);
+            }
+            if (delayFeedback && audioCtx) {
+                delayFeedback.gain.setTargetAtTime((1.0 - y) * 0.65, audioCtx.currentTime, 0.04);
+            }
+            const label = document.getElementById('xy-coords');
+            if (label) {
+                label.textContent = `Cut: ${(cutoff / 1000).toFixed(1)}kHz, Res: ${res.toFixed(1)}`;
+            }
+        }
+
+        function setTopology(idx) {
+            currentTopology = idx;
+            if (shaderUniforms) {
+                shaderUniforms.uTopology.value = idx;
+                shaderUniforms.uTopologyB.value = idx;
+                shaderUniforms.uMorph.value = 1.0;
+            }
+            for (let i = 0; i < 7; i++) {
+                const btn = document.getElementById(`topo-${i}`);
+                if (!btn) continue;
+                if (i === idx) {
+                    btn.className = 'topo-btn py-2 px-2.5 rounded-xl text-xs font-medium text-left transition bg-cyan-500/20 text-cyan-200 border border-cyan-500/40 flex items-center justify-between';
+                } else {
+                    btn.className = 'topo-btn py-2 px-2.5 rounded-xl text-xs font-medium text-left bg-white/[0.03] text-slate-300 hover:bg-white/10 border border-white/5 transition flex items-center justify-between';
+                }
+            }
+        }
+
+        function buildSequencerGrid() {
+            const grid = document.getElementById('seq-grid');
+            if (!grid) return;
+            grid.innerHTML = '';
+            for (let i = 0; i < 16; i++) {
+                const btn = document.createElement('button');
+                btn.id = `seq-step-${i}`;
+                btn.className = `step-btn py-1.5 rounded-lg text-[10px] mono border border-white/10 transition ${seqStepValues[i] ? 'active' : 'bg-white/[0.03] text-slate-400'}`;
+                btn.textContent = i + 1;
+                btn.onclick = () => {
+                    seqStepValues[i] = seqStepValues[i] ? 0 : 1;
+                    btn.classList.toggle('active', seqStepValues[i] === 1);
+                };
+                grid.appendChild(btn);
+            }
+        }
+
+        function toggleSequencer() {
+            sequencerRunning = !sequencerRunning;
+            const btn = document.getElementById('seq-toggle-btn');
+            if (btn) {
+                btn.textContent = sequencerRunning ? 'Run: ON' : 'Run: OFF';
+            }
+        }
+
+        function adjustOctave(delta) {
+            activeOctave = Math.max(2, Math.min(6, activeOctave + delta));
+            const el = document.getElementById('synth-octave');
+            if (el) el.textContent = activeOctave;
+        }
+
+        let panelsVisible = true;
+        function toggleAllPanels() {
+            panelsVisible = !panelsVisible;
+            const left = document.getElementById('left-panel');
+            const right = document.getElementById('right-panel');
+            const dock = document.getElementById('piano-dock');
+            const label = document.getElementById('toggle-ui-label');
+
+            if (left) left.classList.toggle('panel-hidden-left', !panelsVisible);
+            if (right) right.classList.toggle('panel-hidden-right', !panelsVisible);
+            if (dock) dock.classList.toggle('panel-hidden', !panelsVisible);
+            if (label) label.textContent = panelsVisible ? 'Full View' : 'Show Studio';
+        }
+
+        function renderCompositeFrameForExport(bass) {
+            if (!compositeCanvas || !compositeCtx) return;
+            const cw = compositeCanvas.width;
+            const ch = compositeCanvas.height;
+
+            compositeCtx.fillStyle = '#030712';
+            compositeCtx.fillRect(0, 0, cw, ch);
+
+            const drawBg = (img, alpha) => {
+                compositeCtx.save();
+                compositeCtx.globalAlpha = params.bgOpacity * alpha;
+                const zoom = params.bgPulse ? (1.0 + bass * 0.045) : 1.0;
+                const imgRatio = img.width / img.height;
+                const canvasRatio = cw / ch;
+                let drawW, drawH;
+                if (canvasRatio > imgRatio) {
+                    drawW = cw * zoom;
+                    drawH = (cw / imgRatio) * zoom;
+                } else {
+                    drawH = ch * zoom;
+                    drawW = (ch * imgRatio) * zoom;
+                }
+                compositeCtx.drawImage(img, (cw - drawW) * 0.5, (ch - drawH) * 0.5, drawW, drawH);
+                compositeCtx.restore();
+            };
+            if (bgFade.from && bgFade.mix < 1) drawBg(bgFade.from, 1 - bgFade.mix);
+            if (bgImageLoaded && bgImageObj) drawBg(bgImageObj, bgFade.from && bgFade.mix < 1 ? bgFade.mix : 1);
+
+            const webglCanvas = document.getElementById('webgl-canvas');
+            if (webglCanvas) {
+                compositeCtx.drawImage(webglCanvas, 0, 0, cw, ch);
+            }
+
+            if (radialCanvas) {
+                compositeCtx.drawImage(radialCanvas, 0, 0, cw, ch);
+            }
+
+            const portrait = ch > cw;
+            const k = Math.min(cw, ch) / 1080;
+            if (overlaySpectrumCanvas && params.showSpectrumOverlay) {
+                // Shorts cover roughly the bottom fifth with captions and buttons, so the spectrum sits above it.
+                const oh = overlaySpectrumCanvas.height;
+                compositeCtx.drawImage(overlaySpectrumCanvas, 0, portrait ? ch * 0.8 - oh : ch - oh, cw, oh);
+            }
+
+            const titleText = (document.getElementById('header-track-title')?.value || 'Aetherial Pulse');
+            const artistText = (document.getElementById('header-artist-name')?.value || 'AetherFlux Studio');
+            compositeCtx.save();
+            // 9:16: centred below the Shorts top bar; 16:9: top left.
+            const tx = portrait ? cw / 2 : 48 * k, ty = portrait ? ch * 0.17 : 72 * k;
+            compositeCtx.textAlign = portrait ? 'center' : 'left';
+            compositeCtx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+            compositeCtx.font = `700 ${Math.round(36 * k)}px 'Inter', sans-serif`;
+            compositeCtx.fillText(titleText, tx, ty);
+            compositeCtx.fillStyle = '#67e8f9';
+            compositeCtx.font = `500 ${Math.round(20 * k)}px 'JetBrains Mono', monospace`;
+            compositeCtx.fillText(artistText.toUpperCase(), tx, ty + 34 * k);
+            compositeCtx.restore();
+        }
+
+        function recordFullTrackFromStart() {
+            if (isRecording) {
+                stopVideoRecording();
+                return;
+            }
+            ensureAudioContext();
+
+            if (audioSourceMode === 'file' && audioElement) {
+                audioElement.currentTime = 0;
+                isAudioRunning = true;
+                audioElement.play().catch(() => {});
+                updatePlayButtonUI();
+            } else if (!isAudioRunning) {
+                isAudioRunning = true;
+                updatePlayButtonUI();
+            }
+
+            startVideoRecording();
+        }
+
+        function stopVideoRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            isRecording = false;
+            const recLabel = document.getElementById('rec-label');
+            const recDot = document.getElementById('rec-dot');
+            const toast = document.getElementById('rec-toast');
+            if (recLabel) recLabel.textContent = '⏺ Rec & Auto-Export';
+            if (recDot) recDot.classList.remove('animate-ping');
+            if (toast) toast.classList.replace('opacity-100', 'opacity-0');
+        }
+
+        function startVideoRecording() {
+            if (isRecording) {
+                stopVideoRecording();
+                return;
+            }
+            try {
+                ensureAudioContext();
+
+                if (!compositeCanvas) {
+                    compositeCanvas = document.createElement('canvas');
+                    compositeCtx = compositeCanvas.getContext('2d');
+                }
+                compositeCanvas.width = window.innerWidth;
+                compositeCanvas.height = window.innerHeight;
+
+                const canvasStream = compositeCanvas.captureStream(60);
+                if (!mediaStreamDest) {
+                    mediaStreamDest = audioCtx.createMediaStreamDestination();
+                    masterGain.connect(mediaStreamDest);
+                }
+
+                const combined = new MediaStream([
+                    ...canvasStream.getVideoTracks(),
+                    ...mediaStreamDest.stream.getAudioTracks()
+                ]);
+
+                recordedChunks = [];
+                const mimeTypes = [
+                    'video/webm;codecs=vp9,opus',
+                    'video/webm;codecs=vp8,opus',
+                    'video/webm'
+                ];
+                const supportedMime = mimeTypes.find(m => MediaRecorder.isTypeSupported(m)) || 'video/webm';
+
+                mediaRecorder = new MediaRecorder(combined, {
+                    mimeType: supportedMime,
+                    videoBitsPerSecond: 8000000
+                });
+
+                mediaRecorder.ondataavailable = e => {
+                    if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: supportedMime });
+                    const url = URL.createObjectURL(blob);
+                    const rawTitle = (document.getElementById('header-track-title')?.value || 'aetherflux-track')
+                        .toLowerCase()
+                        .replace(/[^a-z0-9-_]+/g, '-');
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${rawTitle}-visualizer.webm`;
+                    a.click();
+                };
+
+                mediaRecorder.start(250);
+                isRecording = true;
+
+                const recLabel = document.getElementById('rec-label');
+                const recDot = document.getElementById('rec-dot');
+                const toast = document.getElementById('rec-toast');
+                const toastText = document.getElementById('rec-toast-text');
+
+                if (recLabel) recLabel.textContent = '⏹ Stop & Export Now';
+                if (recDot) recDot.classList.add('animate-ping');
+                if (toast) {
+                    toast.classList.remove('opacity-0');
+                    toast.classList.add('opacity-100');
+                }
+                if (toastText) {
+                    toastText.textContent = (audioSourceMode === 'file' && audioElement)
+                        ? 'RECORDING TRACK — Will Automatically Export Video When Song Finishes'
+                        : 'RECORDING LIVE SESSION — Click "Stop & Export Now" When Ready';
+                }
+            } catch (err) {
+                console.warn('Recording not supported in this context:', err);
+            }
+        }
+
+        const clock = new THREE.Clock();
+
+        // Band levels and beats from a 512-bin byte spectrum (the analyser's format), in real frequencies:
+        // bass 30-160 Hz (kick and bass line), mids 160 Hz-2 kHz, highs 2-11 kHz. A beat is a bass jump well above its
+        // recent average (adaptive, so quiet and loud songs both work), at most one every 0.28 s. Rates use dt, so live
+        // playback and frame-by-frame export behave the same.
+        function deepBassDb(dbSpec, sampleRate, n) {
+            const binHz = sampleRate / (n * 2);
+            const a = Math.max(1, Math.floor(25 / binHz)), b = Math.min(n - 1, Math.ceil(130 / binHz));
+            let sum = 0;
+            for (let k = a; k <= b; k++) sum += Math.max(-100, Math.min(0, dbSpec[k]));
+            return sum / (b - a + 1);
+        }
+
+        function makeFeatureTracker() {
+            const st = { mean: 0, dev: 0, rawMean: 0, rawDev: 0, lastBeat: -9, peakDb: -60, level: 0, primed: false };
+            return function (spec, rawSpec, sampleRate, dt, t, bassDb = -100) {
+                const binHz = sampleRate / 1024;
+                const band = (lo, hi, src = spec) => {
+                    const a = Math.max(1, Math.floor(lo / binHz)), b = Math.min(spec.length - 1, Math.ceil(hi / binHz));
+                    let sum = 0;
+                    for (let k = a; k <= b; k++) sum += src[k];
+                    return sum / ((b - a + 1) * 255);
+                };
+                const bassE = band(30, 160), midE = band(160, 2000), highE = band(2000, 11000);
+                const rawBass = band(30, 160, rawSpec);
+                if (!st.primed) { st.mean = bassE; st.rawMean = rawBass; st.primed = true; }
+                const k = 1 - Math.exp(-dt / 0.6);
+                const diff = bassE - st.mean;
+                st.mean += diff * k;
+                st.dev += (Math.abs(diff) - st.dev) * k;
+                const punch = Math.min(1.5, Math.max(0, diff) / (st.dev * 3 + 0.03));
+                const rawDiff = rawBass - st.rawMean;
+                st.rawMean += rawDiff * k;
+                st.rawDev += (Math.abs(rawDiff) - st.rawDev) * k;
+                // Centre level: the deep-bass dB within a 14 dB window below a slowly falling peak (so loud and quiet
+                // masters both use the full range), through a soft knee, then a short attack/release for glide.
+                st.peakDb = Math.max(bassDb, st.peakDb - dt * 3);
+                const x = Math.max(0, Math.min(1, (bassDb - (st.peakDb - 14)) / 14));
+                const target = 5 * (1.2 * x - Math.pow(x, 1.2));
+                st.level += (target - st.level) * (1 - Math.exp(-dt / (target > st.level ? 0.035 : 0.11)));
+                let beat = 0;
+                if (rawBass > 0.2 && rawDiff > Math.max(0.035, st.rawDev * 1.8) && t - st.lastBeat > 0.28) {
+                    beat = Math.min(1, rawDiff * 6);
+                    st.lastBeat = t;
+                }
+                const r = params.reactivity;
+                return { bass: Math.min(2.4, (bassE * 0.55 + punch * 0.45) * r), mid: midE * r * 0.9, treble: highE * r * 0.8, beat, kick: Math.max(0, Math.min(1, st.level)) };
+            };
+        }
+        const liveTracker = makeFeatureTracker();
+
+        function liveFeatures(dt, elapsed) {
+            if (isAudioRunning && analyser && freqData) {
+                analyser.getByteFrequencyData(freqData);
+                beatAnalyser.getByteFrequencyData(beatData);
+                bassAnalyser.getFloatFrequencyData(bassDbData);
+                return liveTracker(freqData, beatData, audioCtx.sampleRate, dt, elapsed, deepBassDb(bassDbData, audioCtx.sampleRate, bassDbData.length));
+            }
+            return {
+                bass: 0.14 + Math.sin(elapsed * 2.2) * 0.06,
+                mid: 0.12 + Math.cos(elapsed * 1.7) * 0.05,
+                treble: 0.10 + Math.sin(elapsed * 3.1) * 0.04,
+                beat: 0
+            };
+        }
+
+        function drawDockSpectrum(elapsed) {
+            const w = spectrumCanvas.width;
+            const h = spectrumCanvas.height;
+            spectrumCtx.clearRect(0, 0, w, h);
+
+            const barCount = 36;
+            const barWidth = w / barCount;
+            for (let i = 0; i < barCount; i++) {
+                const raw = (isAudioRunning && freqData)
+                    ? (freqData[i * 4] / 255)
+                    : (0.2 + 0.18 * Math.sin(elapsed * 4 + i * 0.35));
+                const val = Math.min(h, raw * h * 1.15);
+                spectrumCtx.fillStyle = params.spectrumColor === 'rainbow'
+                    ? `hsl(${(i / barCount) * 320 + elapsed * 40}, 90%, 60%)`
+                    : params.spectrumColor;
+                spectrumCtx.fillRect(i * barWidth + 1, h - val, Math.max(1, barWidth - 2), val);
+            }
+        }
+
+        // Full-width spectrum: one filled path and one shadow pass (rainbow needs a colour per bar, with a lighter glow).
+        function drawOverlaySpectrum(elapsed, dt = 1 / 60) {
+            const ow = overlaySpectrumCanvas.width;
+            const oh = overlaySpectrumCanvas.height;
+            overlaySpectrumCtx.clearRect(0, 0, ow, oh);
+            const bars = 84;
+            const stepW = ow / bars;
+            const rainbow = params.spectrumColor === 'rainbow';
+            overlaySpectrumCtx.save();
+            if (rainbow) {
+                overlaySpectrumCtx.shadowBlur = 6;
+            } else {
+                overlaySpectrumCtx.fillStyle = params.spectrumColor;
+                overlaySpectrumCtx.shadowColor = params.spectrumColor;
+                overlaySpectrumCtx.shadowBlur = 14;
+                overlaySpectrumCtx.beginPath();
+            }
+            for (let i = 0; i < bars; i++) {
+                const sampleIdx = Math.min(511, Math.floor(i * 3.2));
+                const raw = (isAudioRunning && freqData)
+                    ? (freqData[sampleIdx] / 255) * params.reactivity * 0.65
+                    : (0.12 + 0.10 * Math.sin(elapsed * 3.2 + i * 0.25));
+                const barH = Math.max(4, Math.min(oh - 12, raw * oh));
+                const x = i * stepW + 2, y = oh - barH, w = Math.max(2, stepW - 4);
+                if (rainbow) {
+                    const c = `hsla(${(i / bars) * 330 + elapsed * 45}, 92%, 62%, 0.78)`;
+                    overlaySpectrumCtx.fillStyle = c;
+                    overlaySpectrumCtx.shadowColor = c;
+                    overlaySpectrumCtx.fillRect(x, y, w, barH);
+                } else {
+                    overlaySpectrumCtx.rect(x, y, w, barH);
+                }
+            }
+            if (!rainbow) overlaySpectrumCtx.fill();
+            overlaySpectrumCtx.restore();
+        }
+
+        // One frame of everything that moves. Rates are per second (dt), so 30 fps exports match 60 fps playback.
+        function drawFrame(dt, elapsed, f) {
+            const { bass, mid, treble } = f;
+            kickEnv = f.kick || 0;
+            if (!EXPORT_JOB && spectrumCtx) drawDockSpectrum(elapsed);
+            if (overlaySpectrumCtx && params.showSpectrumOverlay) drawOverlaySpectrum(elapsed, dt);
+
+            if (params.autoDrops && f.beat > 0) {
+                shockwavePulse = Math.max(shockwavePulse, 0.45 + 0.5 * f.beat);
+            }
+            renderCenterCircleSpectrum(elapsed, bass, mid, treble, dt);
+            shockwavePulse = shockwavePulse > 0.001 ? shockwavePulse * Math.pow(0.91, dt * 60) : 0.0;
+
+            if (shaderUniforms) {
+                const follow = 1 - Math.pow(0.75, dt * 60);
+                shaderUniforms.uTime.value = elapsed;
+                shaderUniforms.uBass.value = THREE.MathUtils.lerp(shaderUniforms.uBass.value, bass, follow);
+                shaderUniforms.uMid.value = THREE.MathUtils.lerp(shaderUniforms.uMid.value, mid, follow);
+                shaderUniforms.uTreble.value = THREE.MathUtils.lerp(shaderUniforms.uTreble.value, treble, follow);
+                shaderUniforms.uShockwave.value = shockwavePulse;
+                shaderUniforms.uAttractorPos.value.copy(pointerWorld);
+                shaderUniforms.uAttractorStrength.value = THREE.MathUtils.lerp(
+                    shaderUniforms.uAttractorStrength.value,
+                    isAttractorActive ? 1.0 : 0.0,
+                    1 - Math.pow(0.85, dt * 60)
+                );
+            }
+
+            if (!isDraggingCanvas) {
+                camSpherical.theta += dt * 0.12;
+                updateCameraOrbit();
+            }
+            // Shake on hits (beats and manual drops), not on every loud bar.
+            if (params.cameraShake && shockwavePulse > 0.05) {
+                const amount = shockwavePulse * 1.2;
+                camera.position.x += (Math.random() - 0.5) * amount;
+                camera.position.y += (Math.random() - 0.5) * amount;
+            }
+
+            if (params.bgPulse && !EXPORT_JOB) {
+                const bgLayer = document.getElementById('bg-image-layer');
+                const scaleFactor = 1.0 + bass * 0.045;
+                bgLayer.style.transform = `scale(${scaleFactor.toFixed(4)})`;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsed = clock.getElapsedTime();
+
+            if (isAudioRunning && audioSourceMode === 'synth' && sequencerRunning) {
+                const stepInterval = (60 / 124) / 4;
+                if (elapsed - lastStepTime >= stepInterval) {
+                    lastStepTime = elapsed;
+                    const step = activeSequencerStep % 16;
+
+                    for (let i = 0; i < 16; i++) {
+                        const b = document.getElementById(`seq-step-${i}`);
+                        if (b) b.style.borderColor = (i === step) ? '#ffffff' : 'rgba(255,255,255,0.1)';
+                    }
+
+                    if (step % 4 === 0) {
+                        triggerKickDrum();
+                    }
+
+                    if (seqStepValues[step] > 0) {
+                        const note = ARP_SCALE[step % ARP_SCALE.length];
+                        const oct = note.includes('5') ? activeOctave : activeOctave - 1;
+                        playSynthNote(note.replace('5', ''), oct, 0.22);
+                    }
+                    activeSequencerStep++;
+                }
+            }
+
+            updateScenes(audioSourceMode === 'file' && audioElement ? audioElement.currentTime : elapsed, dt);
+            const f = liveFeatures(dt, elapsed);
+            drawFrame(dt, elapsed, f);
+            if (isRecording) {
+                renderCompositeFrameForExport(f.bass);
+            }
+        }
+
+        // ---- Frame-by-frame export (driven by server/visualizer.mjs through ?export=<job id>) ----
+
+        // Iterative radix-2 FFT, in place.
+        function makeFft(n) {
+            const levels = Math.log2(n);
+            const cos = new Float64Array(n / 2), sin = new Float64Array(n / 2), rev = new Uint32Array(n);
+            for (let i = 0; i < n / 2; i++) { cos[i] = Math.cos(2 * Math.PI * i / n); sin[i] = Math.sin(2 * Math.PI * i / n); }
+            for (let i = 0; i < n; i++) { let r = 0; for (let b = 0; b < levels; b++) r |= ((i >> b) & 1) << (levels - 1 - b); rev[i] = r; }
+            return (re, im) => {
+                for (let i = 0; i < n; i++) {
+                    const j = rev[i];
+                    if (j > i) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+                }
+                for (let size = 2; size <= n; size *= 2) {
+                    const half = size / 2, step = n / size;
+                    for (let i = 0; i < n; i += size) {
+                        for (let j = 0; j < half; j++) {
+                            const k = j * step, a = i + j, b = a + half;
+                            const tr = re[b] * cos[k] + im[b] * sin[k];
+                            const ti = im[b] * cos[k] - re[b] * sin[k];
+                            re[b] = re[a] - tr; im[b] = im[a] - ti;
+                            re[a] += tr; im[a] += ti;
+                        }
+                    }
+                }
+            };
+        }
+
+        // An offline copy of the live analyser (fftSize 1024, Blackman window, smoothing 0.7, -100 to -30 dB mapped
+        // to 0-255): one spectrum per video frame, so exported frames react the way playback does.
+        async function analyseTrack(url, fps) {
+            const data = await (await fetch(url)).arrayBuffer();
+            const audio = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(data);
+            const sr = audio.sampleRate, N = 1024, len = audio.length;
+            const mono = new Float32Array(len);
+            for (let c = 0; c < audio.numberOfChannels; c++) {
+                const ch = audio.getChannelData(c);
+                for (let i = 0; i < len; i++) mono[i] += ch[i] / audio.numberOfChannels;
+            }
+            const win = new Float32Array(N);
+            for (let i = 0; i < N; i++) win[i] = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / N) + 0.08 * Math.cos(4 * Math.PI * i / N);
+            const fft = makeFft(N), re = new Float64Array(N), im = new Float64Array(N), smooth = new Float64Array(N / 2);
+            const keep = Math.pow(0.7, 60 / fps);   // the analyser smooths per call (about 60 per second)
+            const count = Math.ceil(audio.duration * fps), frames = new Array(count), raw = new Array(count);
+            const toByte = m => { const db = m > 0 ? 20 * Math.log10(m) : -1000; return Math.max(0, Math.min(255, Math.round(255 * (db + 100) / 70))); };
+            for (let f = 0; f < count; f++) {
+                const end = Math.round((f / fps) * sr) + N / 2;   // window centred on the frame: no built-in delay
+                for (let i = 0; i < N; i++) {
+                    const at = end - N + i;
+                    re[i] = (at >= 0 && at < len ? mono[at] : 0) * win[i];
+                    im[i] = 0;
+                }
+                fft(re, im);
+                const bytes = new Uint8Array(N / 2), rawBytes = new Uint8Array(N / 2);
+                for (let k = 0; k < N / 2; k++) {
+                    const mag = Math.hypot(re[k], im[k]) / N;
+                    smooth[k] = keep * smooth[k] + (1 - keep) * mag;
+                    bytes[k] = toByte(smooth[k]);
+                    rawBytes[k] = toByte(mag);
+                }
+                frames[f] = bytes;
+                raw[f] = rawBytes;
+                if (f % 500 === 0) await new Promise(r => setTimeout(r));
+            }
+            // Deep-bass dB per frame for the centre, as the long live analyser measures it (window centred on the frame).
+            const NB = 16384, fftB = makeFft(NB), reB = new Float64Array(NB), imB = new Float64Array(NB), winB = new Float32Array(NB);
+            for (let i = 0; i < NB; i++) winB[i] = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / NB) + 0.08 * Math.cos(4 * Math.PI * i / NB);
+            const binHz = sr / NB, lo = Math.max(1, Math.floor(25 / binHz)), hi = Math.ceil(130 / binHz);
+            const bass = new Float32Array(count);
+            for (let f = 0; f < count; f++) {
+                const start = Math.round((f / fps) * sr) - NB / 2;
+                for (let i = 0; i < NB; i++) {
+                    const at = start + i;
+                    reB[i] = (at >= 0 && at < len ? mono[at] : 0) * winB[i];
+                    imB[i] = 0;
+                }
+                fftB(reB, imB);
+                let sum = 0;
+                for (let k = lo; k <= hi; k++) {
+                    const mag = Math.hypot(reB[k], imB[k]) / NB;
+                    sum += Math.max(-100, Math.min(0, mag > 0 ? 20 * Math.log10(mag) : -100));
+                }
+                bass[f] = sum / (hi - lo + 1);
+                if (f % 300 === 0) await new Promise(r => setTimeout(r));
+            }
+            return { frames, raw, bass, sampleRate: sr, duration: audio.duration };
+        }
+
+        function sceneIndexAt(t) {
+            let idx = -1;
+            for (let i = 0; i < sceneTimeline.length; i++) if (sceneTimeline[i].at <= t + 1e-6) idx = i;
+            return idx;
+        }
+
+        function highlightTopology(idx) {
+            for (let i = 0; i < 7; i++) {
+                const btn = document.getElementById(`topo-${i}`);
+                if (!btn) continue;
+                btn.className = i === idx
+                    ? 'topo-btn py-2 px-2.5 rounded-xl text-xs font-medium text-left transition bg-cyan-500/20 text-cyan-200 border border-cyan-500/40 flex items-center justify-between'
+                    : 'topo-btn py-2 px-2.5 rounded-xl text-xs font-medium text-left bg-white/[0.03] text-slate-300 hover:bg-white/10 border border-white/5 transition flex items-center justify-between';
+            }
+        }
+
+        // Switch to a scene: the background cross-fades (1.2 s) and the particles morph into the new shape (1.6 s).
+        function applyScene(sc, animate) {
+            const prev = bgImageLoaded ? bgImageObj : null;
+            if (sc.bgImg) {
+                bgImageObj = sc.bgImg;
+                bgImageLoaded = true;
+                if (!EXPORT_JOB) {
+                    const layer = document.getElementById('bg-image-layer');
+                    layer.style.backgroundImage = `url('${sc.bg}')`;
+                    layer.style.opacity = params.bgOpacity;
+                }
+            }
+            bgFade = animate && prev && prev !== sc.bgImg ? { from: prev, mix: 0 } : { from: null, mix: 1 };
+            if (shaderUniforms) {
+                const showing = shaderUniforms.uMorph.value >= 0.5 ? shaderUniforms.uTopologyB.value : shaderUniforms.uTopology.value;
+                shaderUniforms.uTopology.value = animate ? showing : sc.topology;
+                shaderUniforms.uTopologyB.value = sc.topology;
+                shaderUniforms.uMorph.value = animate && showing !== sc.topology ? 0.0 : 1.0;
+            }
+            currentTopology = sc.topology;
+            highlightTopology(sc.topology);
+            setSpectrumColor(sc.color);
+        }
+
+        function updateScenes(t, dt) {
+            if (sceneTimeline.length) {
+                const idx = sceneIndexAt(t);
+                if (idx >= 0 && idx !== activeScene) {
+                    applyScene(sceneTimeline[idx], activeScene >= 0);
+                    activeScene = idx;
+                }
+            }
+            if (bgFade.mix < 1) bgFade.mix = Math.min(1, bgFade.mix + dt / 1.2);
+            if (shaderUniforms && shaderUniforms.uMorph.value < 1) shaderUniforms.uMorph.value = Math.min(1, shaderUniforms.uMorph.value + dt / 1.6);
+        }
+
+        function renderSceneList() {
+            const list = document.getElementById('scene-list');
+            if (!list) return;
+            list.textContent = '';
+            const names = ['Galaxy', 'Sphere', 'Torus', 'Wave', 'Helix', 'Black hole', 'Lorenz'];
+            sceneTimeline.forEach((sc, i) => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center gap-2 bg-slate-950/60 border border-white/10 rounded-lg px-2 py-1';
+                const thumb = document.createElement('div');
+                thumb.className = 'w-8 h-5 rounded bg-slate-800 shrink-0';
+                if (sc.bg) { thumb.style.backgroundImage = `url('${sc.bg}')`; thumb.style.backgroundSize = 'cover'; thumb.style.backgroundPosition = 'center'; }
+                const label = document.createElement('span');
+                label.className = 'flex-1 text-[10px] mono text-slate-300';
+                label.textContent = `${formatTime(sc.at)} · ${names[sc.topology]}`;
+                const dot = document.createElement('span');
+                dot.className = 'w-2.5 h-2.5 rounded-full shrink-0';
+                dot.style.background = sc.color === 'rainbow' ? 'linear-gradient(90deg,#06b6d4,#d946ef,#fbbf24)' : sc.color;
+                const del = document.createElement('button');
+                del.className = 'text-slate-500 hover:text-white text-xs';
+                del.textContent = '✕';
+                del.title = 'Remove scene';
+                del.onclick = () => { sceneTimeline.splice(i, 1); activeScene = -1; renderSceneList(); };
+                row.append(thumb, label, dot, del);
+                list.appendChild(row);
+            });
+        }
+
+        function addSceneAtPlayhead() {
+            const at = (audioElement && audioSourceMode === 'file') ? Math.round(audioElement.currentTime * 10) / 10 : 0;
+            const bg = bgImageLoaded && bgImageObj ? encodeImage(bgImageObj, 'image/jpeg', 2560) : null;
+            sceneTimeline = sceneTimeline.filter(sc => Math.abs(sc.at - at) > 0.05);
+            sceneTimeline.push({ at, bg, bgImg: bgImageObj, topology: currentTopology, color: params.spectrumColor });
+            sceneTimeline.sort((x, y) => x.at - y.at);
+            activeScene = sceneIndexAt(at);
+            renderSceneList();
+        }
+
+        let exportData = null, exportTracker = null, exportFps = 30;
+        const loadImage = src => new Promise((ok, fail) => { const img = new Image(); img.onload = () => ok(img); img.onerror = fail; img.src = src; });
+
+        window.__setupExport = async function () {
+            const { settings: s, audioUrl } = window.__localExport;
+            Object.assign(params, s.params);
+            exportFps = s.fps;
+            document.getElementById('header-track-title').value = s.title;
+            document.getElementById('header-artist-name').value = s.artist;
+            setSpectrumColor(params.spectrumColor);
+            setCenterStyle(params.centerStyle);
+            setTopology(s.topology);
+            buildParticleSystem();   // picks up the particle count, topology, colour and kaleidoscope
+            Object.assign(camSpherical, s.camera);
+            updateCameraOrbit();
+            if (s.bg) { bgImageObj = await loadImage(s.bg); bgImageLoaded = true; }
+            if (s.logo) { centerLogoImg = await loadImage(s.logo); centerLogoKeyed = keyOutBlack(centerLogoImg); centerLogoLoaded = true; }
+            sceneTimeline = await Promise.all((s.scenes || []).map(async sc => ({ ...sc, bgImg: sc.bg ? await loadImage(sc.bg) : null })));
+            activeScene = -1;
+            await document.fonts.ready;
+            exportData = await analyseTrack(audioUrl, exportFps);
+            exportTracker = makeFeatureTracker();
+            isAudioRunning = true;
+            compositeCanvas = document.createElement('canvas');
+            compositeCanvas.width = window.innerWidth;
+            compositeCanvas.height = window.innerHeight;
+            compositeCtx = compositeCanvas.getContext('2d');
+            return { frames: exportData.frames.length, duration: exportData.duration };
+        };
+
+        // Section exports: run the beat tracker, scenes and motion up to frame n without drawing, so a section
+        // starts in exactly the state a full export would have reached.
+        window.__advanceTo = function (n) {
+            const dt = 1 / exportFps;
+            for (let i = 0; i < n; i++) {
+                const t = i / exportFps;
+                freqData = exportData.frames[i];
+                updateScenes(t, dt);
+                const f = exportTracker(freqData, exportData.raw[i], exportData.sampleRate, dt, t, exportData.bass[i]);
+                kickEnv = f.kick || 0;
+                if (params.autoDrops && f.beat > 0) shockwavePulse = Math.max(shockwavePulse, 0.45 + 0.5 * f.beat);
+                shockwavePulse = shockwavePulse > 0.001 ? shockwavePulse * Math.pow(0.91, dt * 60) : 0.0;
+                camSpherical.theta += dt * 0.12;
+            }
+            updateCameraOrbit();
+        };
+
+        window.__renderExportFrame = function (i) {
+            const dt = 1 / exportFps, t = i / exportFps;
+            freqData = exportData.frames[i];
+            updateScenes(t, dt);
+            const f = exportTracker(freqData, exportData.raw[i], exportData.sampleRate, dt, t, exportData.bass[i]);
+            drawFrame(dt, t, f);
+            renderCompositeFrameForExport(f.bass);
+            return compositeCanvas;
+        };
+
+        // ---- Export button (live page) ----
+        function setExportStatus(text, href, download) {
+            const el = document.getElementById('export-status');
+            el.textContent = '';
+            if (href) {
+                const a = document.createElement('a');
+                a.href = href;
+                if (download) a.download = download; else a.target = '_blank';
+                a.className = 'text-emerald-300 underline';
+                a.textContent = text;
+                el.appendChild(a);
+            } else {
+                el.textContent = text;
+            }
+        }
+
+        function encodeImage(img, type, maxSide) {
+            const k = Math.min(1, maxSide / Math.max(img.width, img.height));
+            const c = document.createElement('canvas');
+            c.width = Math.round(img.width * k);
+            c.height = Math.round(img.height * k);
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            return c.toDataURL(type, 0.92);
+        }
+
+        async function exportMp4() {
+            const btn = document.getElementById('export-btn');
+            btn.disabled = true;
+            try {
+                if (!currentLocalFile) throw new Error('Load a track first (Upload Audio).');
+                if (!BrowserExport.supported()) throw new Error('Exporting needs Chrome or Edge on a computer.');
+                if (audioElement && !audioElement.paused) { audioElement.pause(); isAudioRunning = false; updatePlayButtonUI(); }
+                const aspect = document.getElementById('export-aspect').value;
+                const title = document.getElementById('header-track-title').value;
+                const artist = document.getElementById('header-artist-name').value;
+                const fileName = BrowserExport.fileNameFor(artist, title, aspect);
+                const save = await BrowserExport.pickSaveFile(fileName);   // first, while the click still counts as a gesture
+                setExportStatus('Exporting…');
+                const result = await BrowserExport.exportVideo({
+                    page: 'aetherflux.html', audioFile: currentLocalFile, aspect, fileName, save,
+                    settings: {
+                        title, artist,
+                        params: { ...params },
+                        topology: currentTopology,
+                        camera: { ...camSpherical },
+                        bg: bgImageLoaded && bgImageObj ? encodeImage(bgImageObj, 'image/jpeg', 3840) : null,
+                        scenes: sceneTimeline.map(({ at, bg, topology, color }) => ({ at, bg, topology, color })),
+                        logo: centerLogoLoaded && centerLogoImg ? encodeImage(centerLogoImg, 'image/png', 1024) : null
+                    }
+                });
+                if (result.savedTo) setExportStatus(`✓ Saved ${result.savedTo}`);
+                else setExportStatus(`✓ Download ${fileName}`, result.url, fileName);
+            } catch (err) {
+                setExportStatus(`⚠ ${err.message}`);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        window.onload = function () {
+            initThree();
+            if (EXPORT_JOB) {
+                document.body.classList.add('export-mode');
+                renderer.setPixelRatio(1);
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                window.__visReady = true;
+                return;
+            }
+            applyStudioHandoff();
+            animate();
+        };
+
+        // Arriving from the Song Studio ("Make the video"): its title, artist and accent colour.
+        function applyStudioHandoff() {
+            if (!new URLSearchParams(location.search).has('from')) return;
+            let h = null;
+            try { h = JSON.parse(localStorage.getItem('studio.handoff') || 'null'); } catch {}
+            if (!h) return;
+            if (h.title) document.getElementById('header-track-title').value = h.title;
+            if (h.artist) document.getElementById('header-artist-name').value = h.artist;
+            syncMetaFromHeader();
+            if (/^#[0-9a-f]{6}$/i.test(h.accent || '')) setSpectrumColor(h.accent);
+            setExportStatus(`Set up for “${h.title}”. Upload your finished track to start.`);
+        }
+    </script>
+</body>
+</html>

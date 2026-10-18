@@ -1,0 +1,7 @@
+test-assets/
+.DS_Store
+Thumbs.db
+.dev.vars
+.env
+node_modules/
+Music/
