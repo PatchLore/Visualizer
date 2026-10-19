@@ -45,7 +45,7 @@
 </head>
 <body>
 <canvas id="stage"></canvas>
-<input type="file" id="audio-file" accept="audio/*" hidden>
+<input type="file" id="audio-file" accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.ogg,.opus,.aif,.aiff" hidden>
 <input type="file" id="bg-file" accept="image/*" hidden>
 <input type="file" id="logo-file" accept="image/*" hidden>
 
@@ -446,9 +446,10 @@ function loadAudio(file) {
     audioEl.src = URL.createObjectURL(file);
     currentFile = file;
     document.getElementById('track-name').textContent = file.name;
+    setStatus('');
     document.getElementById('title').value = file.name.replace(/\.[^/.]+$/, '');
     activeScene = -1;
-    audioEl.play().then(() => { isPlaying = true; updatePlay(); }).catch(() => {});
+    audioEl.play().then(() => { isPlaying = true; updatePlay(); }).catch(() => setStatus('Track loaded. Tap ▶ Play to start.'));
 }
 
 let last = performance.now(), seeking = false;
@@ -645,7 +646,15 @@ function bindControls() {
     document.getElementById('upload-audio').onclick = () => document.getElementById('audio-file').click();
     document.getElementById('upload-bg').onclick = () => document.getElementById('bg-file').click();
     document.getElementById('upload-logo').onclick = () => document.getElementById('logo-file').click();
-    document.getElementById('audio-file').onchange = e => { const f = e.target.files[0]; if (f) loadAudio(f); };
+    // iPhone/iPad grey out audio in iCloud Drive when the picker has a filter, so there any file is allowed and
+    // checked here instead.
+    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (isIOS) document.getElementById('audio-file').removeAttribute('accept');
+    document.getElementById('audio-file').onchange = e => {
+        const f = e.target.files[0]; if (!f) return;
+        if (!/^audio\//.test(f.type) && !/\.(mp3|m4a|wav|aac|flac|ogg|opus|aiff?|caf)$/i.test(f.name)) { setStatus('That file isn’t audio. Pick an MP3, M4A, WAV or similar.'); return; }
+        loadAudio(f);
+    };
     document.getElementById('bg-file').onchange = async e => {
         const f = e.target.files[0]; if (!f) return;
         bgSrc = URL.createObjectURL(f);

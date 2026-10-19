@@ -155,7 +155,7 @@
     <!-- Hidden File Inputs -->
     <input type="file" id="bg-file-input" accept="image/*" class="hidden" onchange="handleBgImage(event)">
     <input type="file" id="logo-file-input" accept="image/*" class="hidden" onchange="handleLogoImage(event)">
-    <input type="file" id="audio-file-input" accept="audio/*" class="hidden" onchange="handleAudioFile(event)">
+    <input type="file" id="audio-file-input" accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.ogg,.opus,.aif,.aiff" class="hidden" onchange="handleAudioFile(event)">
 
     <header class="fixed top-4 left-4 right-4 z-30 flex flex-wrap items-center justify-between gap-3 pointer-events-none">
         <!-- Top-Left Artist, Track & Direct Upload Card -->
@@ -725,6 +725,10 @@
         function handleAudioFile(event) {
             const file = event.target.files[0];
             if (!file) return;
+            if (!/^audio\//.test(file.type) && !/\.(mp3|m4a|wav|aac|flac|ogg|opus|aiff?|caf)$/i.test(file.name)) {
+                setExportStatus('That file isn’t audio. Pick an MP3, M4A, WAV or similar.');
+                return;
+            }
             currentLocalFile = file;
             loadAudioUrl(URL.createObjectURL(file), file.name);
         }
@@ -2346,6 +2350,11 @@
         }
 
         window.onload = function () {
+            // iPhone/iPad grey out audio in iCloud Drive when the picker has a filter, so there any file is allowed
+            // and handleAudioFile checks it instead.
+            if (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+                document.getElementById('audio-file-input').removeAttribute('accept');
+            }
             initThree();
             if (EXPORT_JOB) {
                 document.body.classList.add('export-mode');
