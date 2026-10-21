@@ -65,7 +65,12 @@ Frames are encoded with WebCodecs (H.264, falling back to VP9) and the audio wit
 muxed into an MP4 with [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) (loaded from jsDelivr, pinned to 5.2.2).
 
 In Chrome and Edge the MP4 streams straight to a file the user picks, so long tracks don't fill memory. Other
-browsers build the file in memory and download it.
+browsers build the file in memory, with the bitrate scaled down for long tracks, and offer it as a download.
+
+When the render finishes it stays on screen: a completion panel says the video is ready and has a **Download MP4**
+button (or, when streaming to disk, shows where the file was saved). Nothing is auto-downloaded, because browsers
+block a download started that long after the click and the file then looks lost. Rendering is refused on phones and
+tablets, where the tab runs out of memory and reloads part-way through.
 
 Expect roughly 2x the track length for Monstercat and 3x for AetherFlux on a typical laptop.
 

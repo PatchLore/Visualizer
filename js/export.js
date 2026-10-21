@@ -13,6 +13,10 @@
     const SIZES = { landscape: [1920, 1080], portrait: [1080, 1920] };
     const FPS = 30;
     const SAMPLE_RATE = 48000;
+    // The in-memory path can't stream to disk, so cap the quality to keep a long track's file (and the memory it
+    // needs) within reach of a laptop.
+    const MAX_MEMORY_BYTES = 600 * 1024 * 1024;
+    let lastUrl = null;
 
     // Yields to the event loop without timers, which hidden tabs throttle hard.
     const yieldNow = () => new Promise(resolve => {
@@ -25,7 +29,15 @@
         return 'VideoEncoder' in window && 'AudioEncoder' in window && 'VideoFrame' in window;
     }
 
-    async function pickVideoConfig(width, height) {
+    // Rendering a whole track holds the decoded audio and the growing file in memory; phones and tablets get
+    // killed and quietly reload to a blank page halfway through, so they're refused up front.
+    function onMobile() {
+        if (navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolean') return navigator.userAgentData.mobile;
+        return /Android|iPhone|iPad|iPod|Mobile|Silk/i.test(navigator.userAgent)
+            || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }
+
+    async function pickVideoConfig(width, height, bitrate) {
         const options = [
             ['avc1.64002a', 'avc'],   // H.264 High 4.2
             ['avc1.4d002a', 'avc'],   // Main
@@ -33,7 +45,7 @@
             ['vp09.00.41.08', 'vp9'],
         ];
         for (const [codec, muxCodec] of options) {
-            const config = { codec, width, height, bitrate: 12_000_000, framerate: FPS };
+            const config = { codec, width, height, bitrate, framerate: FPS };
             if (muxCodec === 'avc') config.avc = { format: 'avc' };
             try { if ((await VideoEncoder.isConfigSupported(config)).supported) return { config, muxCodec }; } catch {}
         }
@@ -95,9 +107,63 @@
         card.append(frame, bar, text, hint, cancel);
         overlay.appendChild(card);
         document.body.appendChild(overlay);
+
+        function button(label, primary) {
+            const b = document.createElement('button');
+            b.textContent = label;
+            b.style.cssText = primary
+                ? 'padding:10px 18px;border-radius:10px;border:0;background:linear-gradient(90deg,#22d3ee,#a78bfa);color:#04101c;font:inherit;font-size:13px;font-weight:700;cursor:pointer'
+                : 'padding:10px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:#fff;font:inherit;font-size:13px;cursor:pointer';
+            return b;
+        }
+        // Replaces the progress view with a final panel, so finishing is obvious and the file can always be saved.
+        function panel(mark, title, detail, actions) {
+            frame.remove();
+            bar.remove();
+            text.remove();
+            hint.remove();
+            cancel.remove();
+            const head = document.createElement('div');
+            head.style.cssText = 'display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700';
+            const badge = document.createElement('span');
+            badge.textContent = mark;
+            badge.style.cssText = 'display:grid;place-items:center;width:26px;height:26px;border-radius:50%;font-size:14px;'
+                + (mark === '✓' ? 'background:#10b981;color:#04101c' : 'background:#f59e0b;color:#1a1205');
+            const heading = document.createElement('span');
+            heading.textContent = title;
+            head.append(badge, heading);
+            const line = document.createElement('div');
+            line.textContent = detail || '';
+            line.style.cssText = 'font-size:12px;color:#aeb6c8;line-height:1.5;max-width:420px;word-break:break-word';
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center';
+            actions.forEach(a => row.appendChild(a));
+            card.append(head, line, row);
+        }
+
         return {
             iframe, cancel,
             set(progress, message) { fill.style.width = `${Math.round(progress * 100)}%`; text.textContent = message; },
+            done({ title, detail, url, fileName }) {
+                const actions = [];
+                if (url) {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = fileName || 'visualiser.mp4';
+                    a.textContent = 'Download MP4';
+                    a.style.cssText = 'padding:10px 18px;border-radius:10px;background:linear-gradient(90deg,#22d3ee,#a78bfa);color:#04101c;font-size:13px;font-weight:700;text-decoration:none';
+                    actions.push(a);
+                }
+                const close = button(url ? 'Done' : 'Close', false);
+                close.onclick = () => overlay.remove();
+                actions.push(close);
+                panel('✓', title || 'Video ready', detail, actions);
+            },
+            error(message) {
+                const close = button('Close', false);
+                close.onclick = () => overlay.remove();
+                panel('!', 'Export failed', message, [close]);
+            },
             remove() { overlay.remove(); },
         };
     }
@@ -124,13 +190,14 @@
 
     // page: the visualiser's own URL (loaded with ?export=local). settings: what the page's __setupExport reads.
     // audioFile: the track as a File/Blob. save: a handle from pickSaveFile, or null for an in-memory file.
-    // Returns {blob, url} for in-memory exports (also offered as a download), or {savedTo} for streamed ones.
+    // Returns {blob, url} for in-memory exports (with a Download button left on screen), or {savedTo} for streamed ones.
     async function exportVideo({ page, settings, audioFile, aspect = 'landscape', fileName = 'visualiser.mp4', save = null }) {
         if (!supported()) throw new Error('Exporting needs WebCodecs. Use Chrome or Edge on a computer.');
         if (!audioFile) throw new Error('Load a track first.');
+        if (lastUrl) { URL.revokeObjectURL(lastUrl); lastUrl = null; }
         const [width, height] = SIZES[aspect] || SIZES.landscape;
         const ui = makeOverlay(width, height);
-        let cancelled = false;
+        let cancelled = false, keepOpen = false;
         ui.cancel.onclick = () => { cancelled = true; ui.set(0, 'Cancelling…'); };
         const audioUrl = URL.createObjectURL(audioFile);
         let videoEncoder = null, audioEncoder = null, fileStream = null;
@@ -139,11 +206,17 @@
 
         try {
             ui.set(0, 'Checking what this browser can encode…');
-            const video = await pickVideoConfig(width, height);
+            if (onMobile()) {
+                throw new Error('Rendering a full video needs Chrome or Edge on a computer. Phones and tablets run out of memory part-way through, which reloads the page and loses the render.');
+            }
             const audio = await pickAudioConfig();
 
             ui.set(0, 'Decoding the track…');
-            const decoded = await new OfflineAudioContext(2, 1, SAMPLE_RATE).decodeAudioData(await audioFile.arrayBuffer());
+            let decoded = await new OfflineAudioContext(2, 1, SAMPLE_RATE).decodeAudioData(await audioFile.arrayBuffer());
+            // Without a save handle the whole MP4 is held in memory, so spend fewer bits per second on long tracks.
+            const bitrate = save ? 12_000_000
+                : Math.max(2_500_000, Math.min(12_000_000, Math.round(MAX_MEMORY_BYTES * 8 / Math.max(decoded.duration, 1))));
+            const video = await pickVideoConfig(width, height, bitrate);
 
             ui.set(0, 'Opening the renderer…');
             ui.iframe.src = `${page}${page.includes('?') ? '&' : '?'}export=local`;
@@ -152,22 +225,25 @@
             win.__localExport = { settings: { ...settings, fps: FPS }, audioUrl };
 
             ui.set(0, 'Analysing the track…');
-            const { frames } = await win.__setupExport();
+            const { frames, duration } = await win.__setupExport();
             check();
 
-            const { Muxer, ArrayBufferTarget, FileSystemWritableFileStreamTarget } = window.Mp4Muxer;
-            let target;
+            const { Muxer, StreamTarget, FileSystemWritableFileStreamTarget } = window.Mp4Muxer;
+            let target, parts = null;
             if (save) {
                 fileStream = await save.createWritable();
                 target = new FileSystemWritableFileStreamTarget(fileStream);
             } else {
-                target = new ArrayBufferTarget();
+                // Keep the output as separate byte ranges and hand them to a Blob at the end. A Blob lives outside
+                // the JS heap (the browser can page it to disk), so a long render doesn't need one giant buffer.
+                parts = new ChunkCollector();
+                target = new StreamTarget({ onData: (data, position) => parts.add(data, position) });
             }
             const muxer = new Muxer({
                 target,
                 video: { codec: video.muxCodec, width, height, frameRate: FPS },
                 audio: { codec: audio.muxCodec, numberOfChannels: 2, sampleRate: SAMPLE_RATE },
-                fastStart: save ? false : 'in-memory',
+                fastStart: false,   // metadata at the end: media is written once, straight through, as it's encoded
                 firstTimestampBehavior: 'offset',
             });
 
@@ -187,8 +263,10 @@
                 });
                 audioEncoder.encode(data);
                 data.close();
+                if ((at / block) % 100 === 0) await yieldNow();   // long tracks keep the progress bar moving
             }
             await audioEncoder.flush();
+            decoded = null;   // the encoded audio is in the muxer now; free the decoded track before the video loop
             check();
 
             // Video, frame by frame.
@@ -206,7 +284,14 @@
                 }
                 videoEncoder.encode(frame, { keyFrame: i % (FPS * 2) === 0 });
                 frame.close();
-                while (videoEncoder.encodeQueueSize > 4) await new Promise(r => videoEncoder.addEventListener('dequeue', r, { once: true }));
+                // Wait for the encoder to catch up, but never sit here forever if it silently stalls.
+                while (videoEncoder.encodeQueueSize > 4) {
+                    await Promise.race([
+                        new Promise(r => videoEncoder.addEventListener('dequeue', r, { once: true })),
+                        new Promise(r => setTimeout(r, 200)),
+                    ]);
+                    check();
+                }
                 if (i % 10 === 0) {
                     const elapsed = (performance.now() - started) / 1000, left = i > 30 ? elapsed / i * (frames - i) : null;
                     ui.set(i / frames, `Rendering frame ${i + 1} of ${frames}` + (left != null ? ` · about ${Math.ceil(left / 60)} min left` : ''));
@@ -221,25 +306,71 @@
             if (save) {
                 await fileStream.close();
                 fileStream = null;
+                keepOpen = true;
+                ui.done({ title: 'Video saved', detail: `${save.name} — the full MP4 is on your computer.` });
                 return { savedTo: save.name };
             }
-            const blob = new Blob([target.buffer], { type: 'video/mp4' });
+            const blob = parts.blob();
             const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
+            lastUrl = url;
+            keepOpen = true;
+            // No auto-download: browsers block one started this long after the click, and then the file looks lost.
+            // The panel keeps a real button, clicked by the user, so saving always works.
+            ui.done({
+                title: 'Video complete',
+                detail: `${formatBytes(blob.size)} · ${formatDuration(duration || frames / FPS)} · ready to download.`,
+                url, fileName,
+            });
             return { blob, url };
         } catch (err) {
             if (fileStream) { try { await fileStream.abort(); } catch {} }
+            if (!(err && err.message === 'Export cancelled.')) {
+                keepOpen = true;
+                ui.error(err && err.message ? err.message : 'The renderer stopped unexpectedly.');
+            }
             throw err;
         } finally {
             for (const enc of [videoEncoder, audioEncoder]) { if (enc && enc.state !== 'closed') { try { enc.close(); } catch {} } }
             URL.revokeObjectURL(audioUrl);
-            ui.remove();
+            if (!keepOpen) ui.remove();
         }
+    }
+
+    // Holds the MP4 as byte ranges until the end. mp4-muxer writes media in order, then goes back once to patch
+    // the size in the mdat header, so a plain push would corrupt the file; overlapping ranges are trimmed here.
+    class ChunkCollector {
+        constructor() { this.pieces = []; this.next = 0; }
+        add(data, position) {
+            const end = position + data.byteLength;
+            if (position !== this.next) {
+                for (let i = this.pieces.length - 1; i >= 0; i--) {
+                    const p = this.pieces[i], start = p.position, stop = start + p.data.byteLength;
+                    if (stop <= position || start >= end) continue;
+                    const before = start < position ? p.data.subarray(0, position - start) : null;
+                    const after = stop > end ? p.data.subarray(end - start) : null;
+                    this.pieces.splice(i, 1);
+                    if (before) this.pieces.push({ position: start, data: before });
+                    if (after) this.pieces.push({ position: end, data: after });
+                }
+            }
+            this.pieces.push({ position, data });
+            this.next = Math.max(this.next, end);
+        }
+        blob() {
+            const sorted = this.pieces.slice().sort((a, b) => a.position - b.position);
+            this.pieces = [];
+            return new Blob(sorted.map(p => p.data), { type: 'video/mp4' });
+        }
+    }
+
+    function formatBytes(bytes) {
+        if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(2)} GB`;
+        if (bytes >= 1e6) return `${Math.round(bytes / 1e6)} MB`;
+        return `${Math.max(1, Math.round(bytes / 1e3))} KB`;
+    }
+    function formatDuration(seconds) {
+        const total = Math.max(0, Math.round(seconds || 0));
+        return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
     }
 
     // A file name from the artist and title: "Artist - Title.mp4".
