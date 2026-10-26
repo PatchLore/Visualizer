@@ -14,9 +14,15 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
   - **Monstercat** (`monstercat.html`): Monstercat-style spectrum bars, bass-driven particles, logo and
     artist/title (under the bars or top left), and background scenes that crossfade during the song.
   - **KINETIX** (`kinetix.html`): six WebGL shaders (tunnel, mandala, plasma, vortex, hex grid, synthwave) driven
-    by the track's bass, mids and highs, with a single flash and hyperdrive on drops and short glitches on hard hits
-    (Auto FX), a shader/colour scene timeline and artist/title text. It also works as a live VJ tool: mic input,
-    tap tempo and a built-in kick, hold-to-play FX pads and keys, fullscreen, and short WebM loop recordings.
+    by the track's bass, mids and highs, with artist/title text. Loading a track runs the **auto-director**
+    (`js/director.js`): it finds the tempo, beats, bars and sections (intro, groove, build, drop, breakdown,
+    outro) and plans the video: shader changes on phrase lines (cuts with a glitch into drops, crossfades into calm
+    parts, a new look every 16 bars in long sections), 8-bit builds that snap sharp on the drop, a flash, one-beat
+    invert and hyperdrive on arrival, and glitch or 8-bit fills at phrase ends. The plan shows on a timeline where
+    scenes and effects can be dragged (snapping to beats), retimed, added or removed; Regenerate gives another plan
+    and ½/2× fixes a tempo detected an octave off. The plan is plain data, so the preview and the MP4 match. It
+    also works as a live VJ tool: mic input, tap tempo and a built-in kick, hold-to-play FX pads and keys,
+    fullscreen, and short WebM loop recordings.
 
 ## Run it locally
 

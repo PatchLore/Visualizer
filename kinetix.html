@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
     <script src="js/export.js"></script>
+    <script src="js/director.js"></script>
     <style>
         :root {
             --bg: #08090d; --panel: rgba(14, 16, 24, 0.86); --border: rgba(255, 255, 255, 0.12);
@@ -25,7 +26,7 @@
         .ui-hidden #hud * { pointer-events: none !important; }
         .export-mode #hud { display: none; }
         .hud-top, .hud-bottom { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-        .hud-bottom { align-items: flex-end; }
+        .hud-bottom { align-items: flex-end; flex-wrap: wrap; }
         .panel {
             pointer-events: auto; background: var(--panel); backdrop-filter: blur(12px); border: 1px solid var(--border);
             border-radius: 8px; padding: 12px 14px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
@@ -42,10 +43,11 @@
             background: rgba(255, 255, 255, 0.05); color: var(--text); border: 1px solid var(--border); padding: 7px 10px; border-radius: 4px;
             font-family: var(--font); font-size: 11px; cursor: pointer; transition: all 0.15s ease; text-transform: uppercase; letter-spacing: 0.5px;
         }
-        button:hover { border-color: var(--accent); background: rgba(0, 240, 255, 0.1); }
+        button:hover { border-color: var(--accent); background: rgba(255, 255, 255, 0.1); }
         button:disabled { opacity: 0.5; cursor: default; }
         button.active { background: var(--accent); color: #000; font-weight: 700; border-color: var(--accent); box-shadow: 0 0 14px rgba(0, 240, 255, 0.4); }
         button.primary { background: var(--accent); color: #000; font-weight: 700; border-color: var(--accent); }
+        button.small { padding: 3px 7px; font-size: 10px; }
         button.fx-pad { touch-action: none; }
         button.fx-pad.active { background: var(--accent2); color: #fff; border-color: var(--accent2); box-shadow: 0 0 16px rgba(255, 0, 85, 0.6); }
         button.rec-btn.recording { background: #ff1e42; color: #fff; border-color: #ff1e42; animation: blink 0.8s infinite alternate; }
@@ -60,8 +62,9 @@
             flex: 1; min-width: 0; background: rgba(0, 0, 0, 0.35); color: #fff; border: 1px solid var(--border); border-radius: 4px;
             padding: 6px 8px; font-family: var(--font); font-size: 11px; user-select: text;
         }
+        select option { background: #10131c; }
         .val { width: 36px; text-align: right; font-size: 11px; color: var(--accent); flex-shrink: 0; }
-        .section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 6px; display: flex; justify-content: space-between; gap: 8px; }
+        .section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
         .fx-row { display: flex; gap: 6px; flex-wrap: wrap; }
         .fx-row > button { flex: 1 1 auto; }
         .check { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 11px; cursor: pointer; }
@@ -73,16 +76,30 @@
         #status a { color: var(--accent); }
         .stack { display: flex; flex-direction: column; gap: 6px; }
         .divider { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
-        #scene-list { display: flex; flex-direction: column; gap: 4px; max-height: 120px; overflow-y: auto; margin-top: 6px; }
-        .scene-row { display: flex; align-items: center; gap: 8px; padding: 3px 6px; border-radius: 4px; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.08); font-size: 11px; }
-        .scene-row .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-        .scene-row span { flex: 1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .scene-row button { padding: 0 6px; border: 0; background: none; color: var(--muted); }
-        .scene-row button:hover { color: #fff; background: none; }
+
+        /* Auto-director */
+        .director { flex: 1 1 420px; min-width: 0; }
+        .fx-panel { max-width: 380px; }
+        #timeline { width: 100%; height: 64px; display: block; margin-top: 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.06); cursor: pointer; touch-action: none; }
+        .dir-lists { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+        .list-head { display: flex; align-items: center; gap: 6px; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 4px; }
+        .list-head span { flex: 1; }
+        .list-head select { flex: 0 0 auto; padding: 2px 4px; font-size: 10px; }
+        .list { display: flex; flex-direction: column; gap: 3px; max-height: 112px; overflow-y: auto; }
+        .row { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 4px; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.07); font-size: 10.5px; }
+        .row.current { border-color: var(--accent); }
+        .row .time { flex: 0 0 auto; color: var(--accent); cursor: pointer; font-variant-numeric: tabular-nums; background: none; border: 0; padding: 0 2px; font-size: 10.5px; text-transform: none; letter-spacing: 0; }
+        .row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+        .row select { flex: 0 1 auto; padding: 1px 3px; font-size: 10px; }
+        .row .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .row .del { flex: 0 0 auto; padding: 0 4px; border: 0; background: none; color: var(--muted); }
+        .row .del:hover { color: #fff; background: none; }
+        .empty { color: var(--muted); font-size: 10px; padding: 4px 2px; }
 
         @media (max-width: 900px) {
             .hud-top, .hud-bottom { flex-direction: column; align-items: stretch; }
-            .controls-stack, .panel { width: auto !important; }
+            .controls-stack, .panel { width: auto !important; max-width: none; }
+            .dir-lists { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -124,7 +141,7 @@
             <div id="seek-row"><span id="time-now">0:00</span><input id="seek" type="range" min="0" max="1000" value="0" step="1"><span id="time-total">0:00</span></div>
         </div>
 
-        <!-- Live audio, video text, scenes and export -->
+        <!-- Live audio, video text and export -->
         <div class="panel" style="width: 300px;">
             <div class="section-label">
                 <span>Live clock &amp; audio</span>
@@ -142,13 +159,8 @@
                 <div class="ctrl-row"><label for="artist">Artist</label><input id="artist" type="text" placeholder="Artist"></div>
                 <div class="ctrl-row"><label for="title">Title</label><input id="title" type="text" placeholder="Track title"></div>
                 <label class="check"><input id="show-text" type="checkbox" checked> Show artist and title</label>
-                <label class="check"><input id="auto-fx" type="checkbox" checked> Auto FX: flash and hyperdrive on drops, glitch on hard hits</label>
+                <label class="check"><input id="auto-fx" type="checkbox" checked> Auto FX (the director's effects; without a plan, flashes on drops and glitches on hard hits)</label>
             </div>
-
-            <div class="section-label divider"><span>Scenes</span></div>
-            <div class="hint" style="margin-top:0">Pick a shader and colour, move to the moment, then add a scene. The video cuts to it with a glitch.</div>
-            <div class="fx-row" style="margin-top:6px"><button id="add-scene">＋ Add scene at playhead</button></div>
-            <div id="scene-list"></div>
 
             <div class="section-label divider"><span>Export</span></div>
             <div class="fx-row">
@@ -180,9 +192,46 @@
             <div class="ctrl-row"><label>Audio React</label><input type="range" id="reactCtrl" min="0" max="2" step="0.05" value="1.0"><span class="val" id="reactVal">1.00</span></div>
         </div>
 
+        <!-- Auto-director: plan, timeline, scenes and effects -->
+        <div class="panel director">
+            <div class="section-label">
+                <span>Auto-director</span>
+                <span id="dir-info">No plan yet</span>
+            </div>
+            <div class="fx-row">
+                <button id="dir-run">Auto-direct track</button>
+                <button id="dir-regen" title="A different plan for the same sections">Regenerate</button>
+                <button id="dir-half" class="small" title="Half the detected tempo">½ BPM</button>
+                <button id="dir-double" class="small" title="Double the detected tempo">2× BPM</button>
+                <button id="dir-clear" class="small">Clear</button>
+            </div>
+            <canvas id="timeline"></canvas>
+            <div class="dir-lists">
+                <div>
+                    <div class="list-head"><span>Scenes</span><button id="add-scene" class="small">＋ At playhead</button></div>
+                    <div class="list" id="scene-list"></div>
+                </div>
+                <div>
+                    <div class="list-head">
+                        <span>Effects</span>
+                        <select id="fx-type">
+                            <option value="glitch">Glitch</option>
+                            <option value="pixel">8-bit</option>
+                            <option value="invert">Invert</option>
+                            <option value="hyper">Hyperdrive</option>
+                            <option value="flash">Flash</option>
+                        </select>
+                        <button id="add-fx" class="small">＋ At playhead</button>
+                    </div>
+                    <div class="list" id="fx-list"></div>
+                </div>
+            </div>
+            <div class="hint">Click the timeline to jump there. Drag a scene marker (top) or an effect (bottom) to move it; it snaps to the beat, or hold Shift to place it freely.</div>
+        </div>
+
         <!-- Momentary performance FX -->
-        <div class="panel">
-            <div class="section-label"><span>Momentary performance FX (hold pad or key)</span></div>
+        <div class="panel fx-panel">
+            <div class="section-label"><span>Momentary FX (hold pad or key)</span></div>
             <div class="fx-row">
                 <button class="fx-pad" data-fx="strobe">STROBE [SPACE]</button>
                 <button class="fx-pad" data-fx="glitch">GLITCH [G]</button>
@@ -190,7 +239,7 @@
                 <button class="fx-pad" data-fx="hyper">HYPERDRIVE [B]</button>
                 <button class="fx-pad" data-fx="pixel">8-BIT [X]</button>
             </div>
-            <div class="shortcut-hint">Drag to move the centre • [F] fullscreen • [H] hide this UI • Held FX are live only; exports use Auto FX</div>
+            <div class="shortcut-hint">Drag the picture to move the centre (double-click resets) • [F] fullscreen • [H] hide this UI • Held FX are live only; exports use the plan.</div>
         </div>
     </div>
 </div>
@@ -199,6 +248,8 @@
 // ---- State ----
 const EXPORT_JOB = new URLSearchParams(location.search).get('export');
 const SHADER_NAMES = ['Tunnel', 'Mandala', 'Plasma', 'Vortex', 'Hex Grid', 'Synthwave'];
+const FX_NAMES = { glitch: 'Glitch', pixel: '8-bit', invert: 'Invert', hyper: 'Hyperdrive', flash: 'Flash' };
+const FX_COLORS = { glitch: '#ff0055', pixel: '#ffd400', invert: '#ffffff', hyper: '#00f0ff', flash: '#c8c8ff' };
 const stage = document.getElementById('stage');
 const ctx = stage.getContext('2d');
 const glCanvas = document.createElement('canvas');   // the shaders draw here; each frame is copied to the stage with the text on top
@@ -208,36 +259,73 @@ const params = {
     center: { x: 0.5, y: 0.5 }, showText: true, autoFx: true,
 };
 const held = { strobe: false, glitch: false, invert: false, hyper: false, pixel: false };   // pads and keys, live only
-let autoFx = { glitch: 0, hyper: 0, flash: 0 };                                          // seconds (flash: 0-1 level)
+let autoFx = { glitch: 0, hyper: 0, flash: 0 };                                          // reactive FX without a plan
 let W = 0, H = 0;
 let audioCtx = null, analyser = null, dbData = null, audioEl = null, micStream = null, micSource = null;
 let isPlaying = false, currentFile = null;
 let bpm = 128, synthOn = false;
 
-// Scene timeline: from `at` seconds, this shader and colour. The shader cuts (with a short glitch); the colour
-// blends over 1.2 s. Entries: {at, mode, color}.
-let scenes = [], activeScene = -1;
-let colorFrom = null, colorTo = null, colorMix = 1;
+// The timeline. Scenes: {at, mode, color, fade, label}, from `at` seconds this shader and colour, crossfading from the
+// previous scene over `fade` seconds (0 is a cut, which gets a short glitch). Events: {at, dur, fx, from, to}, an
+// effect whose strength goes from `from` to `to` over `dur` seconds (a flash just decays). Both are functions of the
+// track time only, so seeking, the preview and the export all show the same thing.
+let scenes = [], events = [], activeScene = -1;
+let fadeFrom = 0, fadeWeight = 0;   // the outgoing shader and how much of it still shows
+let direction = null, dirSeed = 1, dirPalette = null;   // the director's analysis of the current track
+
 function mixHex(a, b, t) {
     const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
     const ch = (x, y) => Math.round(x + (y - x) * t);
     const r = ch(pa >> 16 & 255, pb >> 16 & 255), g = ch(pa >> 8 & 255, pb >> 8 & 255), bl = ch(pa & 255, pb & 255);
     return '#' + ((1 << 24) | (r << 16) | (g << 8) | bl).toString(16).slice(1);
 }
-function updateScenes(t, dt) {
-    if (scenes.length) {
-        let idx = -1;
-        for (let i = 0; i < scenes.length; i++) if (scenes[i].at <= t + 1e-6) idx = i;
-        if (idx >= 0 && idx !== activeScene) {
-            const sc = scenes[idx], animate = activeScene >= 0;
-            if (sc.mode !== params.mode) { params.mode = sc.mode; if (animate) autoFx.glitch = Math.max(autoFx.glitch, 0.2); syncShaderBank(); }
-            if (sc.color && /^#[0-9a-f]{6}$/i.test(sc.color)) {
-                if (animate) { colorFrom = params.color; colorTo = sc.color; colorMix = 0; } else { params.color = sc.color; colorMix = 1; }
-            }
-            activeScene = idx;
+function sceneIndexAt(t) {
+    let idx = -1;
+    for (let i = 0; i < scenes.length; i++) if (scenes[i].at <= t + 1e-6) idx = i;
+    return idx;
+}
+// Applies the scene at time t. Between scene changes the shader buttons still work live; the next scene takes over.
+function applyTimeline(t) {
+    const idx = sceneIndexAt(t);
+    if (idx < 0) { fadeWeight = 0; return; }
+    const sc = scenes[idx], prev = scenes[idx - 1];
+    const k = prev && sc.fade > 0 ? Math.min(1, (t - sc.at) / sc.fade) : 1;
+    const mix = k * k * (3 - 2 * k);
+    if (idx !== activeScene || mix < 1) {
+        const changed = params.mode !== sc.mode || idx !== activeScene;
+        params.mode = sc.mode;
+        params.color = prev && mix < 1 && /^#[0-9a-f]{6}$/i.test(prev.color) ? mixHex(prev.color, sc.color, mix) : sc.color;
+        fadeFrom = prev ? prev.mode : sc.mode;
+        fadeWeight = prev && fadeFrom !== sc.mode ? 1 - mix : 0;
+        if (idx !== activeScene) { activeScene = idx; if (!EXPORT_JOB) highlightScene(); }
+        if (changed && !EXPORT_JOB) syncShaderBank();
+    } else fadeWeight = 0;
+}
+
+// Effect strengths (0-1) at time t: planned events, the glitch on cuts, reactive auto FX (no plan) and held pads.
+function fxLevels(t) {
+    const v = { glitch: 0, pixel: 0, invert: 0, hyper: 0, flash: 0, strobe: held.strobe ? 1 : 0 };
+    if (t !== null && params.autoFx) {
+        for (const e of events) {
+            if (t < e.at || t >= e.at + e.dur) continue;
+            const x = e.fx === 'flash' ? Math.exp(-(t - e.at) / 0.12) : e.from + (e.to - e.from) * (t - e.at) / e.dur;
+            v[e.fx] = Math.max(v[e.fx], x);
         }
     }
-    if (colorMix < 1) { colorMix = Math.min(1, colorMix + dt / 1.2); params.color = mixHex(colorFrom, colorTo, colorMix); }
+    if (t !== null) {
+        const idx = sceneIndexAt(t);
+        if (idx > 0 && scenes[idx].fade === 0 && t - scenes[idx].at < 0.2) v.glitch = Math.max(v.glitch, 1 - (t - scenes[idx].at) / 0.2);
+    }
+    if (params.autoFx && !events.length) {
+        if (autoFx.glitch > 0) v.glitch = Math.max(v.glitch, 1);
+        if (autoFx.hyper > 0) v.hyper = Math.max(v.hyper, 1);
+        v.flash = Math.max(v.flash, autoFx.flash);
+    }
+    if (held.glitch) v.glitch = 1;
+    if (held.invert) v.invert = 1;
+    if (held.hyper) v.hyper = 1;
+    if (held.pixel) v.pixel = Math.max(v.pixel, 0.6);
+    return v;
 }
 
 // ---- WebGL ----
@@ -253,6 +341,8 @@ const fragmentShaderSrc = `
     uniform float u_clock;     // plain seconds, for the strobe
     uniform vec2 u_mouse;
     uniform int u_mode;
+    uniform int u_modeFrom;    // the outgoing shader during a crossfade
+    uniform float u_fade;      // how much of it still shows (0 when there is no crossfade)
     uniform float u_zoom;
     uniform float u_sym;
     uniform float u_hue;
@@ -263,7 +353,7 @@ const fragmentShaderSrc = `
     uniform float u_high;
     uniform float u_strobe;
     uniform float u_flash;
-    uniform float u_glitch;
+    uniform float u_glitch;    // effect strengths, 0-1
     uniform float u_invert;
     uniform float u_pixel;
 
@@ -291,31 +381,11 @@ const fragmentShaderSrc = `
         return vec2(cos(a), sin(a)) * length(p);
     }
 
-    void main() {
-        vec2 uv = (gl_FragCoord.xy - 0.5 * u_res.xy) / u_res.y;
-
-        // 8-bit pixelate
-        if (u_pixel > 0.5) {
-            float px = 64.0;
-            uv = floor(uv * px) / px;
-        }
-
-        // Glitch tear
-        if (u_glitch > 0.5) {
-            float slice = floor(uv.y * 18.0 + u_time * 25.0);
-            float shift = sin(slice * 92.1 + u_time * 40.0);
-            if (abs(shift) > 0.65) uv.x += shift * 0.12;
-        }
-
-        // XY centre and zoom
-        uv -= (u_mouse - 0.5) * 0.6;
-        uv /= u_zoom;
-
+    vec3 scene(int mode, vec2 uv, float t) {
         vec3 col = vec3(0.0);
-        float t = u_time;
 
         // 0: cyber tunnel
-        if (u_mode == 0) {
+        if (mode == 0) {
             vec2 p = uv * rot(t * 0.25);
             p = fold(p, u_sym);
             float r = length(p);
@@ -329,7 +399,7 @@ const fragmentShaderSrc = `
         }
 
         // 1: kaleidoscope mandala
-        else if (u_mode == 1) {
+        else if (mode == 1) {
             vec2 p = fold(uv * rot(t * 0.15), u_sym);
             vec2 uv0 = p;
             for (float i = 0.0; i < 4.0; i++) {
@@ -344,7 +414,7 @@ const fragmentShaderSrc = `
         }
 
         // 2: liquid plasma
-        else if (u_mode == 2) {
+        else if (mode == 2) {
             vec2 p = uv * 3.0;
             for (float i = 1.0; i < 5.0; i++) {
                 p.x += 0.4 / i * sin(i * 2.5 * p.y + t + u_bass * 1.2);
@@ -356,7 +426,7 @@ const fragmentShaderSrc = `
         }
 
         // 3: vortex core
-        else if (u_mode == 3) {
+        else if (mode == 3) {
             vec2 p = uv;
             float r = length(p);
             float a = atan(p.y, p.x);
@@ -368,7 +438,7 @@ const fragmentShaderSrc = `
         }
 
         // 4: sacred hex grid
-        else if (u_mode == 4) {
+        else if (mode == 4) {
             vec2 p = fold(uv * rot(t * 0.1), u_sym);
             p *= 6.0;
             vec2 id = floor(p);
@@ -400,6 +470,31 @@ const fragmentShaderSrc = `
             }
             col += vec3(0.0, 0.95, 1.0) * (0.01 / abs(p.y + 0.05)) * (1.0 + u_bass);
         }
+        return col;
+    }
+
+    void main() {
+        vec2 uv = (gl_FragCoord.xy - 0.5 * u_res.xy) / u_res.y;
+
+        // 8-bit: blocks from barely visible (strength near 0) to chunky (1)
+        if (u_pixel > 0.01) {
+            float px = 400.0 * pow(16.0 / 400.0, u_pixel);
+            uv = floor(uv * px) / px;
+        }
+
+        // Glitch tear: more and wider slices as the strength rises
+        if (u_glitch > 0.01) {
+            float slice = floor(uv.y * 18.0 + u_time * 25.0);
+            float shift = sin(slice * 92.1 + u_time * 40.0);
+            if (abs(shift) > 1.0 - 0.35 * u_glitch) uv.x += shift * 0.12 * u_glitch;
+        }
+
+        // XY centre and zoom
+        uv -= (u_mouse - 0.5) * 0.6;
+        uv /= u_zoom;
+
+        vec3 col = scene(u_mode, uv, u_time);
+        if (u_fade > 0.001) col = mix(col, scene(u_modeFrom, uv, u_time), u_fade);
 
         // Colour lock: pull the rainbow palette toward the accent colour, keeping its brightness.
         float lum = dot(col, vec3(0.299, 0.587, 0.114));
@@ -413,10 +508,10 @@ const fragmentShaderSrc = `
             float st = step(0.5, fract(u_clock * 7.5));
             col = mix(col, vec3(1.0), st * 0.85);
         }
-        // Single flash on a drop (decays, never flickers)
+        // Single flash (decays, never flickers)
         col = mix(col, vec3(1.0), clamp(u_flash, 0.0, 1.0) * 0.8);
 
-        if (u_invert > 0.5) col = 1.0 - clamp(col, 0.0, 1.0);
+        col = mix(col, 1.0 - clamp(col, 0.0, 1.0), clamp(u_invert, 0.0, 1.0));
 
         // Vignette
         col *= 1.0 - 0.35 * dot(uv * u_zoom, uv * u_zoom);
@@ -444,7 +539,7 @@ const posLoc = gl.getAttribLocation(prog, 'a_pos');
 gl.enableVertexAttribArray(posLoc);
 gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
 const U = {};
-for (const n of ['res', 'time', 'clock', 'mouse', 'mode', 'zoom', 'sym', 'hue', 'accent', 'lock', 'bass', 'mid', 'high', 'strobe', 'flash', 'glitch', 'invert', 'pixel'])
+for (const n of ['res', 'time', 'clock', 'mouse', 'mode', 'modeFrom', 'fade', 'zoom', 'sym', 'hue', 'accent', 'lock', 'bass', 'mid', 'high', 'strobe', 'flash', 'glitch', 'invert', 'pixel'])
     U[n] = gl.getUniformLocation(prog, `u_${n}`);
 
 // The export renders at exactly 1920x1080 (or 1080x1920); live, up to 1.5x the screen's pixel ratio, since the
@@ -506,26 +601,31 @@ let reactor = makeReactor();
 
 // ---- One frame ----
 let simTime = 0, clock = 0;
-const fxOn = fx => held[fx] || (autoFx[fx] || 0) > 0;
-function step(dt, r) {
-    if (params.autoFx && r.drop) { autoFx.flash = 1; autoFx.hyper = Math.max(autoFx.hyper, 2.5); }
-    if (params.autoFx && r.hardHit) autoFx.glitch = Math.max(autoFx.glitch, 0.1);
+// Reactive auto FX, used only when there is no planned effect list.
+function updateReactiveFx(dt, r) {
+    if (params.autoFx && !events.length) {
+        if (r.drop) { autoFx.flash = 1; autoFx.hyper = Math.max(autoFx.hyper, 2.5); }
+        if (r.hardHit) autoFx.glitch = Math.max(autoFx.glitch, 0.1);
+    }
     autoFx.glitch = Math.max(0, autoFx.glitch - dt);
     autoFx.hyper = Math.max(0, autoFx.hyper - dt);
     autoFx.flash = autoFx.flash > 0.001 ? autoFx.flash * Math.exp(-dt / 0.12) : 0;
-    const hyper = fxOn('hyper') ? 3.5 : 1;
-    simTime += dt * params.speed * hyper * (0.85 + 0.3 * (r.energy || 0));
+}
+function advance(dt, r, fx) {
+    simTime += dt * params.speed * (1 + 2.5 * fx.hyper) * (0.85 + 0.3 * (r.energy || 0));
     clock += dt;
 }
 
 function hexRgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; }
 
-function drawFrame(r) {
+function drawFrame(r, fx) {
     gl.uniform2f(U.res, W, H);
     gl.uniform1f(U.time, simTime);
     gl.uniform1f(U.clock, clock);
     gl.uniform2f(U.mouse, params.center.x, params.center.y);
     gl.uniform1i(U.mode, params.mode);
+    gl.uniform1i(U.modeFrom, fadeFrom);
+    gl.uniform1f(U.fade, fadeWeight);
     gl.uniform1f(U.zoom, params.zoom);
     gl.uniform1f(U.sym, params.sym);
     gl.uniform1f(U.hue, params.hue);
@@ -534,11 +634,11 @@ function drawFrame(r) {
     gl.uniform1f(U.bass, r.bass * params.react);
     gl.uniform1f(U.mid, r.mid * params.react);
     gl.uniform1f(U.high, r.high * params.react);
-    gl.uniform1f(U.strobe, held.strobe ? 1 : 0);
-    gl.uniform1f(U.flash, autoFx.flash);
-    gl.uniform1f(U.glitch, fxOn('glitch') ? 1 : 0);
-    gl.uniform1f(U.invert, held.invert ? 1 : 0);
-    gl.uniform1f(U.pixel, held.pixel ? 1 : 0);
+    gl.uniform1f(U.strobe, fx.strobe);
+    gl.uniform1f(U.flash, fx.flash);
+    gl.uniform1f(U.glitch, fx.glitch);
+    gl.uniform1f(U.invert, fx.invert);
+    gl.uniform1f(U.pixel, fx.pixel);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     ctx.drawImage(glCanvas, 0, 0);   // same task as the draw, so the WebGL buffer is still there
     if (params.showText) drawText(r);
@@ -586,16 +686,27 @@ function ensureAudio() {
 }
 function updatePlay() { document.getElementById('play').textContent = isPlaying ? '⏸ Pause' : '▶ Play'; }
 function formatTime(s) { s = Math.max(0, s || 0); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; }
+function formatAt(s) { return `${formatTime(s)}.${Math.floor(s % 1 * 10)}`; }
 function loadAudio(file) {
     ensureAudio();
     if (audioEl.src) URL.revokeObjectURL(audioEl.src);
     audioEl.src = URL.createObjectURL(file);
     currentFile = file;
+    direction = null;
     document.getElementById('track-name').textContent = file.name;
     setStatus('');
     if (!document.getElementById('title').value) document.getElementById('title').value = file.name.replace(/\.[^/.]+$/, '');
     activeScene = -1;
     audioEl.play().then(() => { isPlaying = true; updatePlay(); }).catch(() => setStatus('Track loaded. Press ▶ Play to start.'));
+    // A new track gets a plan straight away, unless scenes were already placed by hand.
+    if (!scenes.length && !events.length) autoDirect(false);
+    else updateDirInfo();
+}
+
+function seekTo(t) {
+    if (!audioEl || !audioEl.src) return;
+    audioEl.currentTime = Math.max(0, Math.min(audioEl.duration || t, t));
+    activeScene = -1;
 }
 
 // The built-in kick for the live clock: plays through the analyser too, so the visuals hear it.
@@ -664,12 +775,14 @@ function drawSpectrum(live, envelope) {
 }
 
 let last = performance.now(), nextBeatAt = 0, seeking = false, frameCount = 0, fpsTimer = performance.now();
+let exporting = false;   // the live view rests while an export renders, so the GPU goes to the export
 const beatDot = document.getElementById('beatDot');
 const fpsEl = document.getElementById('fpsCounter');
 function animate(now) {
     requestAnimationFrame(animate);
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
+    if (exporting) return;
     frameCount++;
     if (now - fpsTimer > 500) { fpsEl.textContent = `${Math.round(frameCount * 1000 / (now - fpsTimer))} FPS`; frameCount = 0; fpsTimer = now; }
 
@@ -681,10 +794,12 @@ function animate(now) {
     }
     const envelope = Math.pow(1 - Math.min(1, (interval - (nextBeatAt - now)) / interval), 3);
 
+    let t = null;
     if (audioEl && audioEl.src) {
-        updateScenes(audioEl.currentTime, dt);
-        if (!seeking && audioEl.duration) document.getElementById('seek').value = Math.round(audioEl.currentTime / audioEl.duration * 1000);
-        document.getElementById('time-now').textContent = formatTime(audioEl.currentTime);
+        t = audioEl.currentTime;
+        applyTimeline(t);
+        if (!seeking && audioEl.duration) document.getElementById('seek').value = Math.round(t / audioEl.duration * 1000);
+        document.getElementById('time-now').textContent = formatTime(t);
     }
     const listening = analyser && (isPlaying || micStream || synthOn);
     let r;
@@ -694,31 +809,17 @@ function animate(now) {
     } else {
         r = { bass: envelope, mid: (Math.sin(simTime * 2) * 0.5 + 0.5) * 0.4, high: 0.2, energy: 0.5 };
     }
-    step(dt, r);
-    drawFrame(r);
+    updateReactiveFx(dt, r);
+    const fx = fxLevels(t);
+    advance(dt, r, fx);
+    drawFrame(r, fx);
     drawSpectrum(listening, envelope);
+    drawTimeline(t);
     beatDot.style.transform = `scale(${1 + r.bass * params.react * 0.6})`;
-    syncPads();
+    syncPads(fx);
 }
 
 // ---- Frame-by-frame export (driven by js/export.js, which loads this page in an iframe with ?export=local) ----
-function makeFft(n) {
-    const levels = Math.log2(n), cos = new Float64Array(n / 2), sin = new Float64Array(n / 2), rev = new Uint32Array(n);
-    for (let i = 0; i < n / 2; i++) { cos[i] = Math.cos(2 * Math.PI * i / n); sin[i] = Math.sin(2 * Math.PI * i / n); }
-    for (let i = 0; i < n; i++) { let r = 0; for (let b = 0; b < levels; b++) r |= ((i >> b) & 1) << (levels - 1 - b); rev[i] = r; }
-    return (re, im) => {
-        for (let i = 0; i < n; i++) { const j = rev[i]; if (j > i) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
-        for (let size = 2; size <= n; size *= 2) {
-            const half = size / 2, step = n / size;
-            for (let i = 0; i < n; i += size) for (let j = 0; j < half; j++) {
-                const k = j * step, a = i + j, b = a + half;
-                const tr = re[b] * cos[k] + im[b] * sin[k], ti = im[b] * cos[k] - re[b] * sin[k];
-                re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
-            }
-        }
-    };
-}
-
 // The live analyser offline: a 2048-point Blackman FFT centred on each frame, magnitudes smoothed as the
 // AnalyserNode does at 60 calls a second, in dB, reduced to the three band levels.
 async function analyseTrack(url, fps) {
@@ -729,7 +830,7 @@ async function analyseTrack(url, fps) {
     for (let c = 0; c < audio.numberOfChannels; c++) { const ch = audio.getChannelData(c); for (let i = 0; i < len; i++) mono[i] += ch[i] / audio.numberOfChannels; }
     const win = new Float32Array(N);
     for (let i = 0; i < N; i++) win[i] = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / N) + 0.08 * Math.cos(4 * Math.PI * i / N);
-    const fft = makeFft(N), re = new Float64Array(N), im = new Float64Array(N);
+    const fft = KinetixDirector.makeFft(N), re = new Float64Array(N), im = new Float64Array(N);
     const HI = Math.ceil(BANDS[2][1] / (sr / N)) + 2, smooth = new Float64Array(HI), db = new Float32Array(HI), keep = Math.pow(SMOOTHING, 60 / fps);
     const count = Math.ceil(audio.duration * fps), bands = new Array(count);
     for (let f = 0; f < count; f++) {
@@ -755,7 +856,8 @@ window.__setupExport = async function () {
     if (p.center) params.center = { x: p.center.x, y: p.center.y };
     document.getElementById('artist').value = s.artist || '';
     document.getElementById('title').value = s.title || '';
-    scenes = (s.scenes || []).map(({ at, mode, color }) => ({ at, mode, color }));
+    scenes = (s.scenes || []).map(({ at, mode, color, fade }) => ({ at, mode, color, fade: fade || 0 }));
+    events = (s.events || []).map(({ at, dur, fx, from, to }) => ({ at, dur, fx, from, to }));
     activeScene = -1;
     await document.fonts.load(`800 40px 'JetBrains Mono'`);
     await document.fonts.load(`400 40px 'JetBrains Mono'`);
@@ -766,13 +868,273 @@ window.__setupExport = async function () {
     return { frames: exportData.bands.length, duration: exportData.duration };
 };
 window.__renderExportFrame = function (i) {
-    const dt = 1 / exportFps;
-    updateScenes(i / exportFps, dt);
+    const dt = 1 / exportFps, t = i / exportFps;
+    applyTimeline(t);
     const r = reactor(exportData.bands[i], dt);
-    step(dt, r);
-    drawFrame(r);
+    updateReactiveFx(dt, r);
+    const fx = fxLevels(t);
+    advance(dt, r, fx);
+    drawFrame(r, fx);
     return stage;
 };
+
+// ---- Auto-director ----
+const beatSec = () => direction ? direction.periodSec : 0.5;
+function updateDirInfo() {
+    const el = document.getElementById('dir-info');
+    el.textContent = direction ? `${direction.bpm} BPM · ${direction.sections.length} sections` : scenes.length || events.length ? 'Hand-made plan' : 'No plan yet';
+    for (const id of ['dir-regen', 'dir-half', 'dir-double']) document.getElementById(id).disabled = !direction;
+}
+
+async function autoDirect(regenerate) {
+    if (!currentFile) { setStatus('Load a track first.'); return; }
+    const run = document.getElementById('dir-run');
+    run.disabled = true;
+    try {
+        if (!direction) {
+            const file = currentFile;
+            setStatus('Listening to the track for the auto-director…');
+            const audio = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(await file.arrayBuffer());
+            const result = await KinetixDirector.analyse(audio, p => setStatus(`Listening to the track for the auto-director… ${Math.round(p * 100)}%`));
+            if (file !== currentFile) return;   // another track was loaded meanwhile
+            direction = result;
+        }
+        if (regenerate) dirSeed++;
+        makePlan();
+    } catch (err) {
+        setStatus(`⚠ The auto-director couldn’t read this track (${err.message}).`);
+    } finally { run.disabled = false; updateDirInfo(); }
+}
+
+function makePlan() {
+    const colors = dirPalette && dirPalette.length ? dirPalette : [document.getElementById('colorCtrl').value];
+    const plan = KinetixDirector.plan(direction, { seed: dirSeed, colors });
+    scenes = plan.scenes;
+    events = plan.events;
+    activeScene = -1;
+    renderLists();
+    updateDirInfo();
+    setStatus(`Auto-directed at ${direction.bpm} BPM: ${scenes.length} scenes and ${events.length} effects. Edit them below, or Regenerate.`);
+}
+
+function retempo(factor) {
+    if (!direction) return;
+    const next = KinetixDirector.retempo(direction, factor);
+    if (next.bpm === direction.bpm) { setStatus('That tempo is out of range.'); return; }
+    direction = next;
+    makePlan();
+}
+
+function clearPlan() {
+    scenes = []; events = []; activeScene = -1; fadeWeight = 0;
+    renderLists();
+    updateDirInfo();
+    setStatus('Plan cleared. The shader buttons and Auto FX now run live.');
+}
+
+// Snaps to the nearest beat of the analysed track.
+function snapToBeat(t) {
+    const beats = direction && direction.beats;
+    if (!beats || !beats.length) return Math.round(t * 10) / 10;
+    let lo = 0, hi = beats.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (beats[mid] < t) lo = mid; else hi = mid; }
+    return Math.round((Math.abs(beats[lo] - t) < Math.abs(beats[hi] - t) ? beats[lo] : beats[hi]) * 1000) / 1000;
+}
+
+const playhead = () => audioEl && audioEl.src ? audioEl.currentTime : 0;
+
+function addSceneAtPlayhead() {
+    const at = snapToBeat(playhead());
+    scenes = scenes.filter(sc => Math.abs(sc.at - at) > 0.05);
+    scenes.push({ at, mode: params.mode, color: document.getElementById('colorCtrl').value, fade: 0, label: 'Added' });
+    scenes.sort((x, y) => x.at - y.at);
+    activeScene = -1;
+    renderLists();
+    updateDirInfo();
+    setStatus(`Scene added at ${formatAt(at)}: ${SHADER_NAMES[params.mode]}.`);
+}
+
+const FX_DEFAULTS = { glitch: [1, 0.2, 1], pixel: [0.6, 0.6, 1], invert: [1, 1, 1], hyper: [1, 1, 8], flash: [1, 1, 0] };   // from, to, beats (0: 0.6 s)
+function addFxAtPlayhead() {
+    const fx = document.getElementById('fx-type').value, [from, to, beats] = FX_DEFAULTS[fx];
+    const at = snapToBeat(playhead());
+    events.push({ at, dur: beats ? Math.round(beats * beatSec() * 1000) / 1000 : 0.6, fx, from, to });
+    events.sort((x, y) => x.at - y.at);
+    renderLists();
+    updateDirInfo();
+    setStatus(`${FX_NAMES[fx]} added at ${formatAt(at)}.`);
+}
+
+// Lengths in beats, shown for crossfades and effects; stored in seconds.
+const FADE_CHOICES = [['Cut', 0], ['1 beat', 1], ['1 bar', 4], ['2 bars', 8], ['4 bars', 16]];
+const LENGTH_CHOICES = [['1 beat', 1], ['2 beats', 2], ['1 bar', 4], ['2 bars', 8], ['4 bars', 16]];
+function beatsSelect(choices, seconds, onPick) {
+    const sel = document.createElement('select');
+    const beats = seconds / beatSec();
+    let best = 0;
+    choices.forEach(([label, b], i) => {
+        const o = document.createElement('option');
+        o.value = b; o.textContent = label;
+        sel.appendChild(o);
+        if (Math.abs(b - beats) < Math.abs(choices[best][1] - beats)) best = i;
+    });
+    sel.selectedIndex = best;
+    sel.onchange = () => onPick(Math.round(+sel.value * beatSec() * 1000) / 1000);
+    return sel;
+}
+function timeButton(at) {
+    const b = document.createElement('button');
+    b.className = 'time';
+    b.textContent = formatAt(at);
+    b.title = 'Jump here';
+    b.onclick = () => seekTo(at);
+    return b;
+}
+function deleteButton(onClick) {
+    const b = document.createElement('button');
+    b.className = 'del';
+    b.textContent = '✕';
+    b.title = 'Remove';
+    b.onclick = onClick;
+    return b;
+}
+
+function renderLists() {
+    if (EXPORT_JOB) return;
+    const sl = document.getElementById('scene-list');
+    sl.textContent = '';
+    if (!scenes.length) sl.innerHTML = '<div class="empty">No scenes. The shader buttons decide the look.</div>';
+    scenes.forEach((sc, i) => {
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.dataset.index = i;
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        dot.style.background = sc.color;
+        dot.title = sc.label || '';
+        const shader = document.createElement('select');
+        SHADER_NAMES.forEach((n, m) => { const o = document.createElement('option'); o.value = m; o.textContent = n; shader.appendChild(o); });
+        shader.value = sc.mode;
+        shader.title = sc.label || '';
+        shader.onchange = () => { sc.mode = +shader.value; activeScene = -1; };
+        const fade = beatsSelect(FADE_CHOICES, sc.fade, s => { sc.fade = s; activeScene = -1; });
+        fade.title = 'How it arrives';
+        if (i === 0) fade.disabled = true;
+        row.append(timeButton(sc.at), dot, shader, fade, deleteButton(() => { scenes.splice(i, 1); activeScene = -1; renderLists(); updateDirInfo(); }));
+        sl.appendChild(row);
+    });
+    highlightScene();
+
+    const fl = document.getElementById('fx-list');
+    fl.textContent = '';
+    if (!events.length) fl.innerHTML = '<div class="empty">No planned effects.</div>';
+    events.forEach((e, i) => {
+        const row = document.createElement('div');
+        row.className = 'row';
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        dot.style.background = FX_COLORS[e.fx];
+        const name = document.createElement('span');
+        name.className = 'name';
+        name.textContent = FX_NAMES[e.fx];
+        const parts = [timeButton(e.at), dot, name];
+        if (e.fx !== 'flash') parts.push(beatsSelect(LENGTH_CHOICES, e.dur, s => { e.dur = s; }));
+        parts.push(deleteButton(() => { events.splice(i, 1); renderLists(); updateDirInfo(); }));
+        row.append(...parts);
+        fl.appendChild(row);
+    });
+}
+function highlightScene() {
+    document.querySelectorAll('#scene-list .row').forEach(r => r.classList.toggle('current', +r.dataset.index === activeScene));
+}
+
+// The timeline strip: sections (pink drops, cyan grooves, violet calm), scene markers with their crossfades on
+// top, effects underneath, and the playhead.
+const strip = document.getElementById('timeline');
+const sctx = strip.getContext('2d');
+const SECTION_COLORS = { drop: 'rgba(255,0,85,0.30)', groove: 'rgba(0,240,255,0.14)', calm: 'rgba(140,90,255,0.20)' };
+const trackLength = () => (audioEl && audioEl.duration) || (direction && direction.duration) || 0;
+function drawTimeline(t) {
+    const dpr = window.devicePixelRatio || 1, w = Math.round(strip.clientWidth * dpr), h = Math.round(strip.clientHeight * dpr);
+    if (!w || !h) return;
+    if (strip.width !== w || strip.height !== h) { strip.width = w; strip.height = h; }
+    const len = trackLength();
+    sctx.clearRect(0, 0, w, h);
+    if (!len) {
+        sctx.fillStyle = '#7e8698';
+        sctx.font = `${10 * dpr}px 'JetBrains Mono', monospace`;
+        sctx.fillText('Load a track to see its plan here.', 8 * dpr, h / 2 + 3 * dpr);
+        return;
+    }
+    const x = s => s / len * w, laneTop = h * 0.62;
+    if (direction) for (const s of direction.sections) { sctx.fillStyle = SECTION_COLORS[s.kind]; sctx.fillRect(x(s.start), 0, Math.max(1, x(s.end) - x(s.start)), laneTop); }
+    sctx.font = `${9 * dpr}px 'JetBrains Mono', monospace`;
+    scenes.forEach(sc => {
+        if (sc.fade > 0) {
+            const g = sctx.createLinearGradient(x(sc.at), 0, x(sc.at + sc.fade), 0);
+            g.addColorStop(0, 'rgba(255,255,255,0.35)');
+            g.addColorStop(1, 'rgba(255,255,255,0)');
+            sctx.fillStyle = g;
+            sctx.fillRect(x(sc.at), 0, x(sc.at + sc.fade) - x(sc.at), laneTop);
+        }
+        sctx.fillStyle = '#ffffff';
+        sctx.fillRect(x(sc.at), 0, Math.max(1, dpr * 1.5), laneTop);
+        sctx.fillStyle = sc.color;
+        sctx.fillText(String(sc.mode + 1), x(sc.at) + 3 * dpr, 10 * dpr);
+    });
+    sctx.fillStyle = 'rgba(255,255,255,0.05)';
+    sctx.fillRect(0, laneTop, w, h - laneTop);
+    for (const e of events) {
+        sctx.fillStyle = FX_COLORS[e.fx];
+        sctx.globalAlpha = 0.85;
+        sctx.fillRect(x(e.at), laneTop + 3 * dpr, Math.max(2 * dpr, x(e.at + e.dur) - x(e.at)), h - laneTop - 6 * dpr);
+    }
+    sctx.globalAlpha = 1;
+    if (t !== null) { sctx.fillStyle = params.color; sctx.fillRect(x(t) - dpr, 0, 2 * dpr, h); }
+}
+
+// Click to seek; drag a scene marker (top lane) or an effect (bottom lane) to move it.
+function bindTimeline() {
+    let drag = null;
+    const timeAt = e => { const r = strip.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * trackLength(); };
+    strip.addEventListener('pointerdown', e => {
+        const len = trackLength();
+        if (!len) return;
+        const r = strip.getBoundingClientRect(), px = e.clientX - r.left, inFxLane = e.clientY - r.top > r.height * 0.62;
+        const near = (at, slop) => Math.abs(at / len * r.width - px) <= slop;
+        drag = null;
+        if (inFxLane) {
+            const i = events.findIndex(ev => near(ev.at, 5) || (px >= ev.at / len * r.width && px <= (ev.at + ev.dur) / len * r.width));
+            if (i >= 0) drag = { list: 'events', item: events[i], moved: false };
+        } else {
+            let best = -1;
+            scenes.forEach((sc, i) => { if (near(sc.at, 6) && (best < 0 || Math.abs(sc.at / len * r.width - px) < Math.abs(scenes[best].at / len * r.width - px))) best = i; });
+            if (best >= 0) drag = { list: 'scenes', item: scenes[best], moved: false };
+        }
+        strip.setPointerCapture(e.pointerId);
+        if (!drag) { seekTo(timeAt(e)); drag = { list: 'seek' }; }
+    });
+    strip.addEventListener('pointermove', e => {
+        if (!drag) return;
+        const t = timeAt(e);
+        if (drag.list === 'seek') { seekTo(t); return; }
+        drag.item.at = e.shiftKey ? Math.round(t * 1000) / 1000 : snapToBeat(t);
+        drag.moved = true;
+        activeScene = -1;
+    });
+    const end = () => {
+        if (drag && drag.list !== 'seek') {
+            if (!drag.moved) seekTo(drag.item.at);
+            scenes.sort((x, y) => x.at - y.at);
+            events.sort((x, y) => x.at - y.at);
+            activeScene = -1;
+            renderLists();
+        }
+        drag = null;
+    };
+    strip.addEventListener('pointerup', end);
+    strip.addEventListener('pointercancel', end);
+}
 
 // ---- Controls ----
 function setStatus(text, href, download) {
@@ -794,24 +1156,23 @@ async function exportMp4() {
         const fileName = BrowserExport.fileNameFor(artist, title, aspect);
         const save = await BrowserExport.pickSaveFile(fileName);   // first, while the click still counts as a gesture
         setStatus('Exporting…');
-        // The first scene (or the current look, if none starts at 0) is where the video begins.
-        const start = scenes.find(sc => sc.at <= 0.05);
+        exporting = true;
         const result = await BrowserExport.exportVideo({
             page: 'kinetix.html', audioFile: currentFile, aspect, fileName, save,
             settings: {
                 artist, title,
                 params: {
-                    mode: start ? start.mode : params.mode, speed: params.speed, zoom: params.zoom, sym: params.sym, hue: params.hue,
-                    react: params.react, color: start ? start.color : document.getElementById('colorCtrl').value, lock: params.lock,
-                    center: params.center, showText: params.showText, autoFx: params.autoFx,
+                    mode: params.mode, speed: params.speed, zoom: params.zoom, sym: params.sym, hue: params.hue, react: params.react,
+                    color: document.getElementById('colorCtrl').value, lock: params.lock, center: params.center, showText: params.showText, autoFx: params.autoFx,
                 },
-                scenes: scenes.map(({ at, mode, color }) => ({ at, mode, color })),
+                scenes: scenes.map(({ at, mode, color, fade }) => ({ at, mode, color, fade })),
+                events: events.map(({ at, dur, fx, from, to }) => ({ at, dur, fx, from, to })),
             },
         });
         if (result.savedTo) setStatus(`✓ Saved ${result.savedTo}`);
         else setStatus(`✓ Download ${fileName}`, result.url, fileName);
     } catch (err) { setStatus(`⚠ ${err.message}`); }
-    finally { btn.disabled = false; }
+    finally { btn.disabled = false; exporting = false; }
 }
 
 // Live loops: records the screen as it plays (real time, no audio), for VJ software.
@@ -842,46 +1203,15 @@ function syncShaderBank() {
 
 const padEls = {};
 document.querySelectorAll('.fx-pad').forEach(b => { padEls[b.dataset.fx] = b; });
-function syncPads() {
-    for (const fx in padEls) {
-        const on = fxOn(fx) || (fx === 'strobe' && autoFx.flash > 0.2);
-        if (padEls[fx].dataset.on !== String(on)) { padEls[fx].dataset.on = on; padEls[fx].classList.toggle('active', on); }
+function syncPads(fx) {
+    for (const name in padEls) {
+        const on = (fx[name] || 0) > 0.05 || (name === 'strobe' && fx.flash > 0.2);
+        if (padEls[name].dataset.on !== String(on)) { padEls[name].dataset.on = on; padEls[name].classList.toggle('active', on); }
     }
-}
-
-function renderSceneList() {
-    const list = document.getElementById('scene-list');
-    list.textContent = '';
-    scenes.forEach((sc, i) => {
-        const row = document.createElement('div');
-        row.className = 'scene-row';
-        const dot = document.createElement('div');
-        dot.className = 'dot';
-        dot.style.background = sc.color;
-        const label = document.createElement('span');
-        label.textContent = `${formatTime(sc.at)}.${Math.round(sc.at % 1 * 10)} · ${SHADER_NAMES[sc.mode]}`;
-        const del = document.createElement('button');
-        del.textContent = '✕';
-        del.title = 'Remove scene';
-        del.onclick = () => { scenes.splice(i, 1); activeScene = -1; renderSceneList(); };
-        row.append(dot, label, del);
-        list.appendChild(row);
-    });
-}
-
-function addSceneAtPlayhead() {
-    const at = audioEl && audioEl.src ? Math.round(audioEl.currentTime * 10) / 10 : 0;
-    scenes = scenes.filter(sc => Math.abs(sc.at - at) > 0.05);
-    scenes.push({ at, mode: params.mode, color: document.getElementById('colorCtrl').value });
-    scenes.sort((x, y) => x.at - y.at);
-    activeScene = scenes.findIndex(sc => sc.at === at);
-    renderSceneList();
-    setStatus(`Scene added at ${formatTime(at)}: ${SHADER_NAMES[params.mode]}.`);
 }
 
 function setColor(hex) {
     params.color = hex;
-    colorMix = 1;
     document.getElementById('colorCtrl').value = hex;
     document.documentElement.style.setProperty('--accent', hex);
 }
@@ -897,7 +1227,7 @@ const typing = () => ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeEle
 const FX_KEYS = { g: 'glitch', i: 'invert', b: 'hyper', x: 'pixel' };
 
 function bindControls() {
-    document.querySelectorAll('#shaderBank button').forEach(btn => btn.addEventListener('click', () => { params.mode = +btn.dataset.shader; syncShaderBank(); }));
+    document.querySelectorAll('#shaderBank button').forEach(btn => btn.addEventListener('click', () => { params.mode = +btn.dataset.shader; fadeWeight = 0; syncShaderBank(); }));
     bindSlider('speedCtrl', 'speedVal', 'speed');
     bindSlider('zoomCtrl', 'zoomVal', 'zoom');
     bindSlider('symCtrl', 'symVal', 'sym', 0);
@@ -923,7 +1253,7 @@ function bindControls() {
         updatePlay();
     };
     const seek = document.getElementById('seek');
-    seek.oninput = () => { seeking = true; if (audioEl && audioEl.duration) { audioEl.currentTime = seek.value / 1000 * audioEl.duration; activeScene = -1; } };
+    seek.oninput = () => { seeking = true; if (audioEl && audioEl.duration) seekTo(seek.value / 1000 * audioEl.duration); };
     seek.onchange = () => { seeking = false; };
 
     document.getElementById('tapBtn').onclick = triggerTap;
@@ -931,9 +1261,17 @@ function bindControls() {
     document.getElementById('micBtn').onclick = e => toggleMic(e.currentTarget);
     document.getElementById('show-text').onchange = e => { params.showText = e.target.checked; };
     document.getElementById('auto-fx').onchange = e => { params.autoFx = e.target.checked; if (!params.autoFx) autoFx = { glitch: 0, hyper: 0, flash: 0 }; };
-    document.getElementById('add-scene').onclick = addSceneAtPlayhead;
     document.getElementById('export').onclick = exportMp4;
     document.querySelectorAll('.rec-btn').forEach(btn => { btn.onclick = () => recordLoop(btn); });
+
+    document.getElementById('dir-run').onclick = () => autoDirect(false);
+    document.getElementById('dir-regen').onclick = () => autoDirect(true);
+    document.getElementById('dir-half').onclick = () => retempo(0.5);
+    document.getElementById('dir-double').onclick = () => retempo(2);
+    document.getElementById('dir-clear').onclick = clearPlan;
+    document.getElementById('add-scene').onclick = addSceneAtPlayhead;
+    document.getElementById('add-fx').onclick = addFxAtPlayhead;
+    bindTimeline();
 
     // Momentary pads: on while pressed, with the pointer captured so sliding off still releases them.
     for (const [fx, btn] of Object.entries(padEls)) {
@@ -956,7 +1294,7 @@ function bindControls() {
     window.addEventListener('keydown', e => {
         if (typing() || e.ctrlKey || e.metaKey || e.altKey) return;
         const key = e.key.toLowerCase();
-        if (e.key >= '1' && e.key <= '6') { params.mode = +e.key - 1; syncShaderBank(); }
+        if (e.key >= '1' && e.key <= '6') { params.mode = +e.key - 1; fadeWeight = 0; syncShaderBank(); }
         else if (e.code === 'Space') { e.preventDefault(); held.strobe = true; }
         else if (FX_KEYS[key]) held[FX_KEYS[key]] = true;
         else if (key === 't' && !e.repeat) triggerTap();
@@ -974,7 +1312,7 @@ function bindControls() {
 }
 
 // Arriving from the Song Studio ("Make the video"): its title, artist and accent colour, with the palette pulled
-// most of the way toward the accent so the video matches the plan.
+// most of the way toward the accent so the video matches the plan. The plan's palette colours the director's scenes.
 function applyStudioHandoff(setLock) {
     if (!new URLSearchParams(location.search).has('from')) return;
     let h = null;
@@ -982,7 +1320,12 @@ function applyStudioHandoff(setLock) {
     if (!h) return;
     if (h.title) document.getElementById('title').value = h.title;
     if (h.artist) document.getElementById('artist').value = h.artist;
-    if (/^#[0-9a-f]{6}$/i.test(h.accent || '')) { setColor(h.accent); setLock(0.6); }
+    if (/^#[0-9a-f]{6}$/i.test(h.accent || '')) {
+        setColor(h.accent);
+        setLock(0.6);
+        const rest = (Array.isArray(h.palette) ? h.palette : []).filter(c => /^#[0-9a-f]{6}$/i.test(c) && c.toLowerCase() !== h.accent.toLowerCase());
+        dirPalette = [h.accent, ...rest].slice(0, 3);
+    }
     setStatus(`Set up for “${h.title}”. Load your finished track to start.`);
 }
 
@@ -993,6 +1336,8 @@ if (EXPORT_JOB) {
 } else {
     const { setLock } = bindControls();
     applyStudioHandoff(setLock);
+    renderLists();
+    updateDirInfo();
     requestAnimationFrame(animate);
 }
 </script>
