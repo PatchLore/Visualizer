@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["dev-server.mjs", "4330"],
+      "port": 4330,
+      "url": "http://127.0.0.1:4330"
+    }
+  ]
+}

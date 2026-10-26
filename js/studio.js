@@ -193,7 +193,7 @@
         const swatches = $('swatches');
         swatches.textContent = '';
         [v.accent, ...v.palette.filter(c => c.toLowerCase() !== v.accent.toLowerCase())].slice(0, 4).forEach(c => { const i = el('i'); i.style.background = c; i.title = c; swatches.appendChild(i); });
-        const visName = v.visualizer === 'aetherflux' ? 'AetherFlux' : 'Monstercat';
+        const visName = { aetherflux: 'AetherFlux', kinetix: 'KINETIX' }[v.visualizer] || 'Monstercat';
         $('plan-summary').textContent = `${visName} visualiser · ${v.artStyle.replace(/,?\s*no text.*$/i, '')}`;
         const scenes = $('scenes');
         scenes.textContent = '';
@@ -206,7 +206,7 @@
             li.appendChild(copy);
             scenes.appendChild(li);
         });
-        $('make-video').href = `${v.visualizer === 'aetherflux' ? 'aetherflux' : 'monstercat'}.html?from=studio`;
+        $('make-video').href = `${['aetherflux', 'kinetix'].includes(v.visualizer) ? v.visualizer : 'monstercat'}.html?from=studio`;
 
         // YouTube kit
         $('yt-title').textContent = r.youtube.title;

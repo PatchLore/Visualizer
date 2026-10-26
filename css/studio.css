@@ -148,6 +148,12 @@ a.vis p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
 .monster .preview { background: linear-gradient(160deg, #2a0d1a, #05060a 70%); display: flex; align-items: flex-end; justify-content: center; gap: 3px; padding: 0 16px 52px; }
 .bar { width: 6px; background: var(--accent); box-shadow: 0 0 8px rgba(255,45,85,0.6); transform-origin: bottom; animation: bounce 1.1s ease-in-out infinite; }
 @keyframes bounce { 0%, 100% { transform: scaleY(0.25); } 50% { transform: scaleY(1); } }
+.kinetix .preview { background: radial-gradient(circle at 50% 50%, #07222a, #020409 70%); }
+.tunnel { position: absolute; left: 50%; top: 50%; width: 200px; height: 200px; margin: -100px 0 0 -100px; border: 2px solid rgba(0,240,255,0.85);
+    box-shadow: 0 0 18px rgba(0,240,255,0.6); transform: rotate(45deg) scale(0.1); opacity: 0; animation: zoom 2.4s linear infinite; }
+.tunnel.two { border-color: rgba(255,0,85,0.85); box-shadow: 0 0 18px rgba(255,0,85,0.6); animation-delay: -0.8s; }
+.tunnel.three { animation-delay: -1.6s; }
+@keyframes zoom { 0% { transform: rotate(45deg) scale(0.1); opacity: 0; } 15% { opacity: 1; } 100% { transform: rotate(135deg) scale(1.6); opacity: 0; } }
 
 footer { margin-top: 48px; color: var(--faint); font-size: 12px; line-height: 1.6; }
 footer p { margin: 4px 0; }
@@ -158,4 +164,4 @@ footer p { margin: 4px 0; }
     .refine-row { flex-direction: column; }
     .top nav { gap: 12px; }
 }
-@media (prefers-reduced-motion: reduce) { .ring, .bar, .thinking i { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ring, .bar, .tunnel, .thinking i { animation: none; } .tunnel { opacity: 1; transform: rotate(45deg) scale(0.6); } }

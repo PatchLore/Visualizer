@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KINETIX Visualiser</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
+    <script src="js/export.js"></script>
+    <style>
+        :root {
+            --bg: #08090d; --panel: rgba(14, 16, 24, 0.86); --border: rgba(255, 255, 255, 0.12);
+            --accent: #00f0ff; --accent2: #ff0055; --text: #e4e8f0; --muted: #7e8698;
+            --font: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 12px; }
+        #stage { position: fixed; inset: 0; width: 100vw; height: 100vh; cursor: crosshair; touch-action: none; }
+
+        #hud {
+            position: fixed; inset: 0; z-index: 2; pointer-events: none; display: flex; flex-direction: column;
+            justify-content: space-between; gap: 16px; padding: 16px; overflow-y: auto; transition: opacity 0.25s ease; user-select: none;
+        }
+        .ui-hidden #hud { opacity: 0; }
+        .ui-hidden #hud * { pointer-events: none !important; }
+        .export-mode #hud { display: none; }
+        .hud-top, .hud-bottom { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+        .hud-bottom { align-items: flex-end; }
+        .panel {
+            pointer-events: auto; background: var(--panel); backdrop-filter: blur(12px); border: 1px solid var(--border);
+            border-radius: 8px; padding: 12px 14px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .pulse-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); transition: transform 0.05s ease; flex-shrink: 0; }
+        .title { font-weight: 700; letter-spacing: 2px; font-size: 13px; color: #fff; }
+        .sub { color: var(--muted); font-size: 10px; }
+        .sub a { color: var(--muted); text-decoration: none; }
+        .sub a:hover { color: #fff; }
+
+        .bank-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+        button {
+            background: rgba(255, 255, 255, 0.05); color: var(--text); border: 1px solid var(--border); padding: 7px 10px; border-radius: 4px;
+            font-family: var(--font); font-size: 11px; cursor: pointer; transition: all 0.15s ease; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        button:hover { border-color: var(--accent); background: rgba(0, 240, 255, 0.1); }
+        button:disabled { opacity: 0.5; cursor: default; }
+        button.active { background: var(--accent); color: #000; font-weight: 700; border-color: var(--accent); box-shadow: 0 0 14px rgba(0, 240, 255, 0.4); }
+        button.primary { background: var(--accent); color: #000; font-weight: 700; border-color: var(--accent); }
+        button.fx-pad { touch-action: none; }
+        button.fx-pad.active { background: var(--accent2); color: #fff; border-color: var(--accent2); box-shadow: 0 0 16px rgba(255, 0, 85, 0.6); }
+        button.rec-btn.recording { background: #ff1e42; color: #fff; border-color: #ff1e42; animation: blink 0.8s infinite alternate; }
+        @keyframes blink { from { box-shadow: 0 0 4px #ff1e42; } to { box-shadow: 0 0 18px #ff1e42; } }
+
+        .controls-stack { display: flex; flex-direction: column; gap: 8px; width: 270px; }
+        .ctrl-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .ctrl-row label { color: var(--muted); font-size: 10px; text-transform: uppercase; width: 90px; flex-shrink: 0; }
+        input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); cursor: pointer; }
+        input[type="color"] { flex: 1; height: 22px; background: none; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; }
+        input[type="text"], select {
+            flex: 1; min-width: 0; background: rgba(0, 0, 0, 0.35); color: #fff; border: 1px solid var(--border); border-radius: 4px;
+            padding: 6px 8px; font-family: var(--font); font-size: 11px; user-select: text;
+        }
+        .val { width: 36px; text-align: right; font-size: 11px; color: var(--accent); flex-shrink: 0; }
+        .section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 6px; display: flex; justify-content: space-between; gap: 8px; }
+        .fx-row { display: flex; gap: 6px; flex-wrap: wrap; }
+        .fx-row > button { flex: 1 1 auto; }
+        .check { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 11px; cursor: pointer; }
+        #spectrumCanvas { width: 100%; height: 36px; background: rgba(0, 0, 0, 0.4); border-radius: 4px; margin-top: 6px; border: 1px solid rgba(255, 255, 255, 0.06); display: block; }
+        .shortcut-hint, .hint { font-size: 10px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+        #track-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 6px; font-size: 11px; }
+        #seek-row { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; margin-top: 6px; }
+        #status { color: var(--text); min-height: 14px; margin-top: 6px; font-size: 11px; word-break: break-word; }
+        #status a { color: var(--accent); }
+        .stack { display: flex; flex-direction: column; gap: 6px; }
+        .divider { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+        #scene-list { display: flex; flex-direction: column; gap: 4px; max-height: 120px; overflow-y: auto; margin-top: 6px; }
+        .scene-row { display: flex; align-items: center; gap: 8px; padding: 3px 6px; border-radius: 4px; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.08); font-size: 11px; }
+        .scene-row .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+        .scene-row span { flex: 1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .scene-row button { padding: 0 6px; border: 0; background: none; color: var(--muted); }
+        .scene-row button:hover { color: #fff; background: none; }
+
+        @media (max-width: 900px) {
+            .hud-top, .hud-bottom { flex-direction: column; align-items: stretch; }
+            .controls-stack, .panel { width: auto !important; }
+        }
+    </style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<input type="file" id="audio-file" accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.ogg,.opus,.aif,.aiff" hidden>
+
+<div id="hud">
+    <div class="hud-top">
+        <!-- Brand, shaders and the track -->
+        <div class="panel" style="width: 330px;">
+            <div class="brand">
+                <div class="pulse-dot" id="beatDot"></div>
+                <div>
+                    <div class="title">KINETIX // VJ-SYNTH</div>
+                    <div class="sub"><a href="monstercat.html">Monstercat</a> · <a href="aetherflux.html">AetherFlux</a> · <a href="index.html">Home</a></div>
+                </div>
+            </div>
+
+            <div class="section-label" style="margin-top:12px;">
+                <span>Shader engine [1-6]</span>
+                <span id="fpsCounter">60 FPS</span>
+            </div>
+            <div class="bank-grid" id="shaderBank">
+                <button class="active" data-shader="0">1. Tunnel</button>
+                <button data-shader="1">2. Mandala</button>
+                <button data-shader="2">3. Plasma</button>
+                <button data-shader="3">4. Vortex</button>
+                <button data-shader="4">5. Hex Grid</button>
+                <button data-shader="5">6. Synthwave</button>
+            </div>
+
+            <div class="section-label divider"><span>Track</span></div>
+            <div class="fx-row">
+                <button id="upload-audio">Load audio</button>
+                <button id="play">▶ Play</button>
+            </div>
+            <div id="track-name" class="hint">No track loaded</div>
+            <div id="seek-row"><span id="time-now">0:00</span><input id="seek" type="range" min="0" max="1000" value="0" step="1"><span id="time-total">0:00</span></div>
+        </div>
+
+        <!-- Live audio, video text, scenes and export -->
+        <div class="panel" style="width: 300px;">
+            <div class="section-label">
+                <span>Live clock &amp; audio</span>
+                <span id="bpmDisplay">128 BPM</span>
+            </div>
+            <div class="fx-row">
+                <button id="tapBtn">TAP [T]</button>
+                <button id="synthBtn">4/4 SYNTH</button>
+                <button id="micBtn">MIC IN</button>
+            </div>
+            <canvas id="spectrumCanvas" width="270" height="36"></canvas>
+
+            <div class="section-label divider"><span>Video</span></div>
+            <div class="stack">
+                <div class="ctrl-row"><label for="artist">Artist</label><input id="artist" type="text" placeholder="Artist"></div>
+                <div class="ctrl-row"><label for="title">Title</label><input id="title" type="text" placeholder="Track title"></div>
+                <label class="check"><input id="show-text" type="checkbox" checked> Show artist and title</label>
+                <label class="check"><input id="auto-fx" type="checkbox" checked> Auto FX: flash and hyperdrive on drops, glitch on hard hits</label>
+            </div>
+
+            <div class="section-label divider"><span>Scenes</span></div>
+            <div class="hint" style="margin-top:0">Pick a shader and colour, move to the moment, then add a scene. The video cuts to it with a glitch.</div>
+            <div class="fx-row" style="margin-top:6px"><button id="add-scene">＋ Add scene at playhead</button></div>
+            <div id="scene-list"></div>
+
+            <div class="section-label divider"><span>Export</span></div>
+            <div class="fx-row">
+                <select id="aspect">
+                    <option value="landscape">16:9 · 1920×1080</option>
+                    <option value="portrait">9:16 · 1080×1920</option>
+                </select>
+                <button id="export" class="primary">Export MP4</button>
+            </div>
+            <div class="section-label" style="margin-top:10px;"><span>Live loop (WebM, no audio)</span></div>
+            <div class="fx-row">
+                <button class="rec-btn" data-dur="4">REC 4s</button>
+                <button class="rec-btn" data-dur="8">REC 8s</button>
+            </div>
+            <div id="status"></div>
+        </div>
+    </div>
+
+    <div class="hud-bottom">
+        <!-- Parameters -->
+        <div class="panel controls-stack">
+            <div class="section-label"><span>Shader parameters</span></div>
+            <div class="ctrl-row"><label>Speed</label><input type="range" id="speedCtrl" min="0.1" max="3.0" step="0.05" value="1.0"><span class="val" id="speedVal">1.00</span></div>
+            <div class="ctrl-row"><label>Zoom / Scale</label><input type="range" id="zoomCtrl" min="0.3" max="3.0" step="0.05" value="1.0"><span class="val" id="zoomVal">1.00</span></div>
+            <div class="ctrl-row"><label>Symmetry</label><input type="range" id="symCtrl" min="1" max="12" step="1" value="6"><span class="val" id="symVal">6</span></div>
+            <div class="ctrl-row"><label>Colour Shift</label><input type="range" id="hueCtrl" min="0" max="1" step="0.01" value="0.0"><span class="val" id="hueVal">0.00</span></div>
+            <div class="ctrl-row"><label>Colour</label><input type="color" id="colorCtrl" value="#00f0ff"><span class="val"></span></div>
+            <div class="ctrl-row"><label>Colour Lock</label><input type="range" id="lockCtrl" min="0" max="1" step="0.01" value="0.0"><span class="val" id="lockVal">0.00</span></div>
+            <div class="ctrl-row"><label>Audio React</label><input type="range" id="reactCtrl" min="0" max="2" step="0.05" value="1.0"><span class="val" id="reactVal">1.00</span></div>
+        </div>
+
+        <!-- Momentary performance FX -->
+        <div class="panel">
+            <div class="section-label"><span>Momentary performance FX (hold pad or key)</span></div>
+            <div class="fx-row">
+                <button class="fx-pad" data-fx="strobe">STROBE [SPACE]</button>
+                <button class="fx-pad" data-fx="glitch">GLITCH [G]</button>
+                <button class="fx-pad" data-fx="invert">INVERT [I]</button>
+                <button class="fx-pad" data-fx="hyper">HYPERDRIVE [B]</button>
+                <button class="fx-pad" data-fx="pixel">8-BIT [X]</button>
+            </div>
+            <div class="shortcut-hint">Drag to move the centre • [F] fullscreen • [H] hide this UI • Held FX are live only; exports use Auto FX</div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ---- State ----
+const EXPORT_JOB = new URLSearchParams(location.search).get('export');
+const SHADER_NAMES = ['Tunnel', 'Mandala', 'Plasma', 'Vortex', 'Hex Grid', 'Synthwave'];
+const stage = document.getElementById('stage');
+const ctx = stage.getContext('2d');
+const glCanvas = document.createElement('canvas');   // the shaders draw here; each frame is copied to the stage with the text on top
+const gl = glCanvas.getContext('webgl', { antialias: false });
+const params = {
+    mode: 0, speed: 1.0, zoom: 1.0, sym: 6, hue: 0.0, react: 1.0, color: '#00f0ff', lock: 0.0,
+    center: { x: 0.5, y: 0.5 }, showText: true, autoFx: true,
+};
+const held = { strobe: false, glitch: false, invert: false, hyper: false, pixel: false };   // pads and keys, live only
+let autoFx = { glitch: 0, hyper: 0, flash: 0 };                                          // seconds (flash: 0-1 level)
+let W = 0, H = 0;
+let audioCtx = null, analyser = null, dbData = null, audioEl = null, micStream = null, micSource = null;
+let isPlaying = false, currentFile = null;
+let bpm = 128, synthOn = false;
+
+// Scene timeline: from `at` seconds, this shader and colour. The shader cuts (with a short glitch); the colour
+// blends over 1.2 s. Entries: {at, mode, color}.
+let scenes = [], activeScene = -1;
+let colorFrom = null, colorTo = null, colorMix = 1;
+function mixHex(a, b, t) {
+    const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+    const ch = (x, y) => Math.round(x + (y - x) * t);
+    const r = ch(pa >> 16 & 255, pb >> 16 & 255), g = ch(pa >> 8 & 255, pb >> 8 & 255), bl = ch(pa & 255, pb & 255);
+    return '#' + ((1 << 24) | (r << 16) | (g << 8) | bl).toString(16).slice(1);
+}
+function updateScenes(t, dt) {
+    if (scenes.length) {
+        let idx = -1;
+        for (let i = 0; i < scenes.length; i++) if (scenes[i].at <= t + 1e-6) idx = i;
+        if (idx >= 0 && idx !== activeScene) {
+            const sc = scenes[idx], animate = activeScene >= 0;
+            if (sc.mode !== params.mode) { params.mode = sc.mode; if (animate) autoFx.glitch = Math.max(autoFx.glitch, 0.2); syncShaderBank(); }
+            if (sc.color && /^#[0-9a-f]{6}$/i.test(sc.color)) {
+                if (animate) { colorFrom = params.color; colorTo = sc.color; colorMix = 0; } else { params.color = sc.color; colorMix = 1; }
+            }
+            activeScene = idx;
+        }
+    }
+    if (colorMix < 1) { colorMix = Math.min(1, colorMix + dt / 1.2); params.color = mixHex(colorFrom, colorTo, colorMix); }
+}
+
+// ---- WebGL ----
+const vertexShaderSrc = `
+    attribute vec2 a_pos;
+    void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+`;
+
+const fragmentShaderSrc = `
+    precision highp float;
+    uniform vec2 u_res;
+    uniform float u_time;      // shader time: speeds up with Speed, Hyperdrive and the music's energy
+    uniform float u_clock;     // plain seconds, for the strobe
+    uniform vec2 u_mouse;
+    uniform int u_mode;
+    uniform float u_zoom;
+    uniform float u_sym;
+    uniform float u_hue;
+    uniform vec3 u_accent;
+    uniform float u_lock;
+    uniform float u_bass;
+    uniform float u_mid;
+    uniform float u_high;
+    uniform float u_strobe;
+    uniform float u_flash;
+    uniform float u_glitch;
+    uniform float u_invert;
+    uniform float u_pixel;
+
+    #define PI 3.14159265359
+    #define TAU 6.28318530718
+
+    mat2 rot(float a) {
+        float s = sin(a), c = cos(a);
+        return mat2(c, -s, s, c);
+    }
+
+    vec3 palette(float t) {
+        vec3 a = vec3(0.5, 0.5, 0.5);
+        vec3 b = vec3(0.5, 0.5, 0.5);
+        vec3 c = vec3(1.0, 1.0, 1.0);
+        vec3 d = vec3(0.263, 0.416, 0.557) + u_hue;
+        return a + b * cos(TAU * (c * t + d));
+    }
+
+    // Kaleidoscopic fold
+    vec2 fold(vec2 p, float segments) {
+        float angle = TAU / max(1.0, segments);
+        float a = atan(p.y, p.x) + angle * 0.5;
+        a = mod(a, angle) - angle * 0.5;
+        return vec2(cos(a), sin(a)) * length(p);
+    }
+
+    void main() {
+        vec2 uv = (gl_FragCoord.xy - 0.5 * u_res.xy) / u_res.y;
+
+        // 8-bit pixelate
+        if (u_pixel > 0.5) {
+            float px = 64.0;
+            uv = floor(uv * px) / px;
+        }
+
+        // Glitch tear
+        if (u_glitch > 0.5) {
+            float slice = floor(uv.y * 18.0 + u_time * 25.0);
+            float shift = sin(slice * 92.1 + u_time * 40.0);
+            if (abs(shift) > 0.65) uv.x += shift * 0.12;
+        }
+
+        // XY centre and zoom
+        uv -= (u_mouse - 0.5) * 0.6;
+        uv /= u_zoom;
+
+        vec3 col = vec3(0.0);
+        float t = u_time;
+
+        // 0: cyber tunnel
+        if (u_mode == 0) {
+            vec2 p = uv * rot(t * 0.25);
+            p = fold(p, u_sym);
+            float r = length(p);
+            float a = atan(p.y, p.x);
+            float z = 0.4 / (r + 0.02) + t * 1.6 + u_bass * 0.35;
+            float rings = abs(sin(z * 5.0));
+            float spokes = abs(cos(a * u_sym));
+            float glow = 0.03 / abs(rings * spokes - 0.15);
+            col = palette(z * 0.15 + u_mid * 0.3) * glow;
+            col *= smoothstep(0.02, 0.25, r);
+        }
+
+        // 1: kaleidoscope mandala
+        else if (u_mode == 1) {
+            vec2 p = fold(uv * rot(t * 0.15), u_sym);
+            vec2 uv0 = p;
+            for (float i = 0.0; i < 4.0; i++) {
+                p = fract(p * (1.5 + u_bass * 0.15)) - 0.5;
+                float d = length(p) * exp(-length(uv0));
+                vec3 c = palette(length(uv0) + i * 0.4 + t * 0.4);
+                d = sin(d * 8.0 + t * 2.0) / 8.0;
+                d = abs(d);
+                d = pow(0.012 / max(d, 0.001), 1.2);
+                col += c * d;
+            }
+        }
+
+        // 2: liquid plasma
+        else if (u_mode == 2) {
+            vec2 p = uv * 3.0;
+            for (float i = 1.0; i < 5.0; i++) {
+                p.x += 0.4 / i * sin(i * 2.5 * p.y + t + u_bass * 1.2);
+                p.y += 0.4 / i * cos(i * 2.5 * p.x + t + u_mid * 1.2);
+            }
+            float v = sin(p.x + p.y + t) * 0.5 + 0.5;
+            col = palette(v + length(uv) * 0.3);
+            col += vec3(0.08 / abs(sin(length(p) * 2.0 - t * 2.0)));
+        }
+
+        // 3: vortex core
+        else if (u_mode == 3) {
+            vec2 p = uv;
+            float r = length(p);
+            float a = atan(p.y, p.x);
+            float spiral = sin(a * u_sym - r * (10.0 - u_bass * 3.0) + t * 4.0);
+            float ring = sin(r * 20.0 - t * 6.0);
+            float energy = 0.04 / abs(spiral * ring + 0.05);
+            col = palette(r - t * 0.3) * energy;
+            col += vec3(1.0, 0.3, 0.6) * (0.04 / (r + 0.05)) * (1.0 + u_bass);
+        }
+
+        // 4: sacred hex grid
+        else if (u_mode == 4) {
+            vec2 p = fold(uv * rot(t * 0.1), u_sym);
+            p *= 6.0;
+            vec2 id = floor(p);
+            vec2 gv = fract(p) - 0.5;
+            float d = abs(abs(gv.x) + abs(gv.y) - (0.5 + u_bass * 0.25));
+            float wave = sin(length(uv) * 12.0 - t * 4.0) * 0.5 + 0.5;
+            col = palette(length(id) * 0.1 + t * 0.2) * (0.03 / max(d, 0.002)) * (0.4 + wave);
+        }
+
+        // 5: synthwave outrun
+        else {
+            vec2 p = uv;
+            if (p.y > -0.05) {
+                vec2 sunPos = p - vec2(0.0, 0.18);
+                float sun = length(sunPos) - (0.28 + u_bass * 0.04);
+                float stripes = sin(p.y * 75.0 - t * 4.0);
+                if (sun < 0.0 && stripes > -0.25) {
+                    col = mix(vec3(1.0, 0.05, 0.45), vec3(1.0, 0.85, 0.1), sunPos.y * 3.0 + 0.5);
+                } else {
+                    col = vec3(0.06, 0.01, 0.12) / (abs(p.y + 0.05) * 6.0 + 0.2);
+                }
+            } else {
+                vec2 gp = vec2(p.x / abs(p.y + 0.05), 1.0 / abs(p.y + 0.05));
+                gp.y += t * 4.0;
+                vec2 grid = abs(fract(gp) - 0.5);
+                float line = min(grid.x, grid.y);
+                float glow = 0.03 / max(line, 0.002);
+                col = palette(gp.y * 0.05 + u_hue) * glow * abs(p.y);
+            }
+            col += vec3(0.0, 0.95, 1.0) * (0.01 / abs(p.y + 0.05)) * (1.0 + u_bass);
+        }
+
+        // Colour lock: pull the rainbow palette toward the accent colour, keeping its brightness.
+        float lum = dot(col, vec3(0.299, 0.587, 0.114));
+        col = mix(col, u_accent * lum * 1.6, u_lock);
+
+        // A little extra sparkle from the highs
+        col *= 1.0 + u_high * 0.2;
+
+        // Held strobe: 7.5 Hz, which lands on whole frames at 30 and 60 fps
+        if (u_strobe > 0.5) {
+            float st = step(0.5, fract(u_clock * 7.5));
+            col = mix(col, vec3(1.0), st * 0.85);
+        }
+        // Single flash on a drop (decays, never flickers)
+        col = mix(col, vec3(1.0), clamp(u_flash, 0.0, 1.0) * 0.8);
+
+        if (u_invert > 0.5) col = 1.0 - clamp(col, 0.0, 1.0);
+
+        // Vignette
+        col *= 1.0 - 0.35 * dot(uv * u_zoom, uv * u_zoom);
+
+        gl_FragColor = vec4(col, 1.0);
+    }
+`;
+
+function compileShader(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
+    return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, compileShader(gl.VERTEX_SHADER, vertexShaderSrc));
+gl.attachShader(prog, compileShader(gl.FRAGMENT_SHADER, fragmentShaderSrc));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+const posLoc = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+const U = {};
+for (const n of ['res', 'time', 'clock', 'mouse', 'mode', 'zoom', 'sym', 'hue', 'accent', 'lock', 'bass', 'mid', 'high', 'strobe', 'flash', 'glitch', 'invert', 'pixel'])
+    U[n] = gl.getUniformLocation(prog, `u_${n}`);
+
+// The export renders at exactly 1920x1080 (or 1080x1920); live, up to 1.5x the screen's pixel ratio, since the
+// shaders are heavy at full retina resolution.
+function resize() {
+    const scale = EXPORT_JOB ? 1 : Math.min(window.devicePixelRatio || 1, 1.5);
+    W = stage.width = glCanvas.width = Math.round(window.innerWidth * scale);
+    H = stage.height = glCanvas.height = Math.round(window.innerHeight * scale);
+    gl.viewport(0, 0, W, H);
+}
+window.addEventListener('resize', resize);
+
+// ---- Audio reaction ----
+// Three bands from a dB spectrum (the AnalyserNode's format): bass 30-150 Hz, mids 300-2000 Hz, highs 3-12 kHz.
+const FFT_SIZE = 2048, SMOOTHING = 0.5;
+const BANDS = [[30, 150], [300, 2000], [3000, 12000]];
+function bandDbs(db, sampleRate) {
+    const binHz = sampleRate / FFT_SIZE;
+    return BANDS.map(([lo, hi]) => {
+        const a = Math.max(1, Math.floor(lo / binHz)), b = Math.min(db.length - 1, Math.ceil(hi / binHz));
+        let sum = 0;
+        for (let k = a; k <= b; k++) sum += Math.max(-100, Math.min(0, db[k]));
+        return sum / (b - a + 1);
+    });
+}
+
+// Band levels (0-1) against each band's loudest moment so far (forgotten slowly, so quiet and loud masters both
+// fill the range); kicks where the bass jumps above its own recent average; drops where the short-term energy
+// jumps well above the last several seconds. Driven by dt only, so live and export react the same way.
+function makeReactor() {
+    const st = { peak: [-45, -45, -45], level: [0, 0, 0], slowBass: -100, kick: 0, sinceKick: 1, short: 0, long: 0, sinceDrop: 99, hits: 0 };
+    const clamp01 = x => Math.max(0, Math.min(1, x));
+    return (bands, dt) => {
+        for (let i = 0; i < 3; i++) {
+            st.peak[i] = Math.max(bands[i], st.peak[i] - dt * 0.4);
+            const x = clamp01((bands[i] - (st.peak[i] - 22)) / 22);
+            st.level[i] += (x - st.level[i]) * (1 - Math.exp(-dt / (x > st.level[i] ? 0.03 : 0.18)));
+        }
+        const rise = bands[0] - st.slowBass;
+        st.slowBass += (bands[0] - st.slowBass) * (1 - Math.exp(-dt / 0.25));
+        st.sinceKick += dt;
+        st.sinceDrop += dt;
+        let onset = false, drop = false;
+        if (rise > 3 && st.level[0] > 0.5 && st.sinceKick > 0.2) { st.kick = 1; st.sinceKick = 0; onset = true; }
+        st.kick *= Math.exp(-dt / 0.16);
+        const energy = st.level[0] * 0.5 + st.level[1] * 0.3 + st.level[2] * 0.2;
+        st.short += (energy - st.short) * (1 - Math.exp(-dt / 0.5));
+        st.long += (energy - st.long) * (1 - Math.exp(-dt / 8));
+        if (st.short - st.long > 0.2 && st.short > 0.55 && st.sinceDrop > 10) { drop = true; st.sinceDrop = 0; }
+        let hardHit = false;
+        if (onset && st.short > 0.65 && ++st.hits % 4 === 0) hardHit = true;
+        return {
+            bass: Math.min(1.4, 0.7 * st.kick + 0.6 * Math.pow(st.level[0], 1.5)),
+            mid: st.level[1], high: st.level[2], energy: st.short, onset, drop, hardHit,
+        };
+    };
+}
+let reactor = makeReactor();
+
+// ---- One frame ----
+let simTime = 0, clock = 0;
+const fxOn = fx => held[fx] || (autoFx[fx] || 0) > 0;
+function step(dt, r) {
+    if (params.autoFx && r.drop) { autoFx.flash = 1; autoFx.hyper = Math.max(autoFx.hyper, 2.5); }
+    if (params.autoFx && r.hardHit) autoFx.glitch = Math.max(autoFx.glitch, 0.1);
+    autoFx.glitch = Math.max(0, autoFx.glitch - dt);
+    autoFx.hyper = Math.max(0, autoFx.hyper - dt);
+    autoFx.flash = autoFx.flash > 0.001 ? autoFx.flash * Math.exp(-dt / 0.12) : 0;
+    const hyper = fxOn('hyper') ? 3.5 : 1;
+    simTime += dt * params.speed * hyper * (0.85 + 0.3 * (r.energy || 0));
+    clock += dt;
+}
+
+function hexRgb(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; }
+
+function drawFrame(r) {
+    gl.uniform2f(U.res, W, H);
+    gl.uniform1f(U.time, simTime);
+    gl.uniform1f(U.clock, clock);
+    gl.uniform2f(U.mouse, params.center.x, params.center.y);
+    gl.uniform1i(U.mode, params.mode);
+    gl.uniform1f(U.zoom, params.zoom);
+    gl.uniform1f(U.sym, params.sym);
+    gl.uniform1f(U.hue, params.hue);
+    gl.uniform3f(U.accent, ...hexRgb(params.color));
+    gl.uniform1f(U.lock, params.lock);
+    gl.uniform1f(U.bass, r.bass * params.react);
+    gl.uniform1f(U.mid, r.mid * params.react);
+    gl.uniform1f(U.high, r.high * params.react);
+    gl.uniform1f(U.strobe, held.strobe ? 1 : 0);
+    gl.uniform1f(U.flash, autoFx.flash);
+    gl.uniform1f(U.glitch, fxOn('glitch') ? 1 : 0);
+    gl.uniform1f(U.invert, held.invert ? 1 : 0);
+    gl.uniform1f(U.pixel, held.pixel ? 1 : 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    ctx.drawImage(glCanvas, 0, 0);   // same task as the draw, so the WebGL buffer is still there
+    if (params.showText) drawText(r);
+}
+
+// Artist and title, bottom left, with an accent bar that kicks with the bass.
+function drawText(r) {
+    const artist = (document.getElementById('artist').value || '').toUpperCase();
+    const title = (document.getElementById('title').value || '').toUpperCase();
+    if (!artist && !title) return;
+    const portrait = H > W, k = Math.min(W, H);
+    const x = W * (portrait ? 0.07 : 0.045), y = H * (portrait ? 0.86 : 0.84);
+    const big = Math.round(k * (portrait ? 0.05 : 0.048)), small = Math.round(big * 0.48);
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = big * 0.35;
+    ctx.fillStyle = params.color;
+    const barW = big * (1.6 + 1.4 * Math.min(1, r.bass));
+    ctx.fillRect(x, y - big * 0.95, barW, Math.max(2, big * 0.09));
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `800 ${big}px 'JetBrains Mono', monospace`;
+    const maxW = W - x * 2;
+    if (artist) ctx.fillText(artist, x, y, maxW);
+    ctx.font = `400 ${small}px 'JetBrains Mono', monospace`;
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+    if (title) ctx.fillText(title, x, y + (artist ? small * 1.6 : 0), maxW);
+    ctx.restore();
+}
+
+// ---- Live playback ----
+function ensureAudio() {
+    if (audioCtx) { if (audioCtx.state === 'suspended') audioCtx.resume(); return; }
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = FFT_SIZE;
+    analyser.smoothingTimeConstant = SMOOTHING;
+    dbData = new Float32Array(analyser.frequencyBinCount);
+    audioEl = new Audio();
+    const src = audioCtx.createMediaElementSource(audioEl);
+    src.connect(analyser);
+    src.connect(audioCtx.destination);
+    audioEl.addEventListener('ended', () => { isPlaying = false; updatePlay(); });
+    audioEl.addEventListener('loadedmetadata', () => { document.getElementById('time-total').textContent = formatTime(audioEl.duration); });
+}
+function updatePlay() { document.getElementById('play').textContent = isPlaying ? '⏸ Pause' : '▶ Play'; }
+function formatTime(s) { s = Math.max(0, s || 0); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; }
+function loadAudio(file) {
+    ensureAudio();
+    if (audioEl.src) URL.revokeObjectURL(audioEl.src);
+    audioEl.src = URL.createObjectURL(file);
+    currentFile = file;
+    document.getElementById('track-name').textContent = file.name;
+    setStatus('');
+    if (!document.getElementById('title').value) document.getElementById('title').value = file.name.replace(/\.[^/.]+$/, '');
+    activeScene = -1;
+    audioEl.play().then(() => { isPlaying = true; updatePlay(); }).catch(() => setStatus('Track loaded. Press ▶ Play to start.'));
+}
+
+// The built-in kick for the live clock: plays through the analyser too, so the visuals hear it.
+function triggerSynthKick() {
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.frequency.setValueAtTime(140, now);
+    osc.frequency.exponentialRampToValueAtTime(38, now + 0.12);
+    gain.gain.setValueAtTime(0.7, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    osc.connect(gain);
+    gain.connect(analyser);
+    gain.connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + 0.22);
+}
+
+async function toggleMic(btn) {
+    ensureAudio();
+    if (micStream) {
+        // Turning it off really releases the microphone, not just the button.
+        micSource.disconnect();
+        micStream.getTracks().forEach(t => t.stop());
+        micStream = micSource = null;
+        btn.classList.remove('active');
+        return;
+    }
+    try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        micSource = audioCtx.createMediaStreamSource(micStream);
+        micSource.connect(analyser);   // to the analyser only, never the speakers (no feedback)
+        btn.classList.add('active');
+    } catch { setStatus('Microphone access was denied or is unavailable.'); }
+}
+
+const tapTimes = [];
+function triggerTap() {
+    const now = performance.now();
+    if (tapTimes.length && now - tapTimes[tapTimes.length - 1] > 2000) tapTimes.length = 0;   // a fresh run of taps
+    tapTimes.push(now);
+    if (tapTimes.length > 4) tapTimes.shift();
+    if (tapTimes.length >= 2) {
+        const avg = (tapTimes[tapTimes.length - 1] - tapTimes[0]) / (tapTimes.length - 1);
+        const b = Math.round(60000 / avg);
+        if (b >= 60 && b <= 200) { bpm = b; document.getElementById('bpmDisplay').textContent = `${bpm} BPM`; }
+    }
+}
+
+const specCanvas = document.getElementById('spectrumCanvas');
+const specCtx = specCanvas.getContext('2d');
+function drawSpectrum(live, envelope) {
+    specCtx.clearRect(0, 0, specCanvas.width, specCanvas.height);
+    const bars = 24, bw = specCanvas.width / bars, binHz = audioCtx ? audioCtx.sampleRate / FFT_SIZE : 1;
+    for (let i = 0; i < bars; i++) {
+        let val;
+        if (live) {
+            const k = Math.round(40 * Math.pow(12000 / 40, i / (bars - 1)) / binHz);   // 40 Hz to 12 kHz, log spaced
+            val = Math.max(0, Math.min(1, (dbData[k] + 90) / 60));
+        } else {
+            val = Math.max(0.08, Math.sin(i * 0.4 + simTime * 6) * 0.3 + envelope * (1 - i / bars));
+        }
+        const h = val * specCanvas.height;
+        specCtx.fillStyle = i < 6 ? '#ff0055' : params.color;
+        specCtx.fillRect(i * bw + 1, specCanvas.height - h, bw - 2, h);
+    }
+}
+
+let last = performance.now(), nextBeatAt = 0, seeking = false, frameCount = 0, fpsTimer = performance.now();
+const beatDot = document.getElementById('beatDot');
+const fpsEl = document.getElementById('fpsCounter');
+function animate(now) {
+    requestAnimationFrame(animate);
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    frameCount++;
+    if (now - fpsTimer > 500) { fpsEl.textContent = `${Math.round(frameCount * 1000 / (now - fpsTimer))} FPS`; frameCount = 0; fpsTimer = now; }
+
+    // Live clock: the synth kick on every beat, and a pulse when nothing is listening.
+    const interval = 60000 / bpm;
+    if (now >= nextBeatAt) {
+        nextBeatAt = now - nextBeatAt < interval ? nextBeatAt + interval : now + interval;
+        if (synthOn && audioCtx) triggerSynthKick();
+    }
+    const envelope = Math.pow(1 - Math.min(1, (interval - (nextBeatAt - now)) / interval), 3);
+
+    if (audioEl && audioEl.src) {
+        updateScenes(audioEl.currentTime, dt);
+        if (!seeking && audioEl.duration) document.getElementById('seek').value = Math.round(audioEl.currentTime / audioEl.duration * 1000);
+        document.getElementById('time-now').textContent = formatTime(audioEl.currentTime);
+    }
+    const listening = analyser && (isPlaying || micStream || synthOn);
+    let r;
+    if (listening) {
+        analyser.getFloatFrequencyData(dbData);
+        r = reactor(bandDbs(dbData, audioCtx.sampleRate), dt);
+    } else {
+        r = { bass: envelope, mid: (Math.sin(simTime * 2) * 0.5 + 0.5) * 0.4, high: 0.2, energy: 0.5 };
+    }
+    step(dt, r);
+    drawFrame(r);
+    drawSpectrum(listening, envelope);
+    beatDot.style.transform = `scale(${1 + r.bass * params.react * 0.6})`;
+    syncPads();
+}
+
+// ---- Frame-by-frame export (driven by js/export.js, which loads this page in an iframe with ?export=local) ----
+function makeFft(n) {
+    const levels = Math.log2(n), cos = new Float64Array(n / 2), sin = new Float64Array(n / 2), rev = new Uint32Array(n);
+    for (let i = 0; i < n / 2; i++) { cos[i] = Math.cos(2 * Math.PI * i / n); sin[i] = Math.sin(2 * Math.PI * i / n); }
+    for (let i = 0; i < n; i++) { let r = 0; for (let b = 0; b < levels; b++) r |= ((i >> b) & 1) << (levels - 1 - b); rev[i] = r; }
+    return (re, im) => {
+        for (let i = 0; i < n; i++) { const j = rev[i]; if (j > i) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+        for (let size = 2; size <= n; size *= 2) {
+            const half = size / 2, step = n / size;
+            for (let i = 0; i < n; i += size) for (let j = 0; j < half; j++) {
+                const k = j * step, a = i + j, b = a + half;
+                const tr = re[b] * cos[k] + im[b] * sin[k], ti = im[b] * cos[k] - re[b] * sin[k];
+                re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+            }
+        }
+    };
+}
+
+// The live analyser offline: a 2048-point Blackman FFT centred on each frame, magnitudes smoothed as the
+// AnalyserNode does at 60 calls a second, in dB, reduced to the three band levels.
+async function analyseTrack(url, fps) {
+    const data = await (await fetch(url)).arrayBuffer();
+    const audio = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(data);
+    const sr = audio.sampleRate, N = FFT_SIZE, len = audio.length;
+    const mono = new Float32Array(len);
+    for (let c = 0; c < audio.numberOfChannels; c++) { const ch = audio.getChannelData(c); for (let i = 0; i < len; i++) mono[i] += ch[i] / audio.numberOfChannels; }
+    const win = new Float32Array(N);
+    for (let i = 0; i < N; i++) win[i] = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / N) + 0.08 * Math.cos(4 * Math.PI * i / N);
+    const fft = makeFft(N), re = new Float64Array(N), im = new Float64Array(N);
+    const HI = Math.ceil(BANDS[2][1] / (sr / N)) + 2, smooth = new Float64Array(HI), db = new Float32Array(HI), keep = Math.pow(SMOOTHING, 60 / fps);
+    const count = Math.ceil(audio.duration * fps), bands = new Array(count);
+    for (let f = 0; f < count; f++) {
+        const start = Math.round((f / fps) * sr) - N / 2;
+        for (let i = 0; i < N; i++) { const at = start + i; re[i] = (at >= 0 && at < len ? mono[at] : 0) * win[i]; im[i] = 0; }
+        fft(re, im);
+        for (let k = 0; k < HI; k++) {
+            smooth[k] = keep * smooth[k] + (1 - keep) * Math.hypot(re[k], im[k]) / N;
+            db[k] = smooth[k] > 0 ? 20 * Math.log10(smooth[k]) : -100;
+        }
+        bands[f] = bandDbs(db, sr);
+        if (f % 200 === 0) await new Promise(r => setTimeout(r));
+    }
+    return { bands, duration: audio.duration };
+}
+
+let exportData = null, exportFps = 30;
+window.__setupExport = async function () {
+    const { settings: s, audioUrl } = window.__localExport;
+    exportFps = s.fps;
+    const p = s.params || {};
+    for (const key of ['mode', 'speed', 'zoom', 'sym', 'hue', 'react', 'color', 'lock', 'showText', 'autoFx']) if (p[key] !== undefined) params[key] = p[key];
+    if (p.center) params.center = { x: p.center.x, y: p.center.y };
+    document.getElementById('artist').value = s.artist || '';
+    document.getElementById('title').value = s.title || '';
+    scenes = (s.scenes || []).map(({ at, mode, color }) => ({ at, mode, color }));
+    activeScene = -1;
+    await document.fonts.load(`800 40px 'JetBrains Mono'`);
+    await document.fonts.load(`400 40px 'JetBrains Mono'`);
+    reactor = makeReactor();
+    autoFx = { glitch: 0, hyper: 0, flash: 0 };
+    simTime = 0; clock = 0;
+    exportData = await analyseTrack(audioUrl, exportFps);
+    return { frames: exportData.bands.length, duration: exportData.duration };
+};
+window.__renderExportFrame = function (i) {
+    const dt = 1 / exportFps;
+    updateScenes(i / exportFps, dt);
+    const r = reactor(exportData.bands[i], dt);
+    step(dt, r);
+    drawFrame(r);
+    return stage;
+};
+
+// ---- Controls ----
+function setStatus(text, href, download) {
+    const el = document.getElementById('status');
+    el.textContent = '';
+    if (href) { const a = document.createElement('a'); a.href = href; if (download) a.download = download; else a.target = '_blank'; a.textContent = text; el.appendChild(a); }
+    else el.textContent = text;
+}
+
+async function exportMp4() {
+    const btn = document.getElementById('export');
+    btn.disabled = true;
+    try {
+        if (!currentFile) throw new Error('Load a track first.');
+        if (!BrowserExport.supported()) throw new Error('Exporting needs Chrome or Edge on a computer.');
+        if (isPlaying) { audioEl.pause(); isPlaying = false; updatePlay(); }
+        const aspect = document.getElementById('aspect').value;
+        const artist = document.getElementById('artist').value, title = document.getElementById('title').value;
+        const fileName = BrowserExport.fileNameFor(artist, title, aspect);
+        const save = await BrowserExport.pickSaveFile(fileName);   // first, while the click still counts as a gesture
+        setStatus('Exporting…');
+        // The first scene (or the current look, if none starts at 0) is where the video begins.
+        const start = scenes.find(sc => sc.at <= 0.05);
+        const result = await BrowserExport.exportVideo({
+            page: 'kinetix.html', audioFile: currentFile, aspect, fileName, save,
+            settings: {
+                artist, title,
+                params: {
+                    mode: start ? start.mode : params.mode, speed: params.speed, zoom: params.zoom, sym: params.sym, hue: params.hue,
+                    react: params.react, color: start ? start.color : document.getElementById('colorCtrl').value, lock: params.lock,
+                    center: params.center, showText: params.showText, autoFx: params.autoFx,
+                },
+                scenes: scenes.map(({ at, mode, color }) => ({ at, mode, color })),
+            },
+        });
+        if (result.savedTo) setStatus(`✓ Saved ${result.savedTo}`);
+        else setStatus(`✓ Download ${fileName}`, result.url, fileName);
+    } catch (err) { setStatus(`⚠ ${err.message}`); }
+    finally { btn.disabled = false; }
+}
+
+// Live loops: records the screen as it plays (real time, no audio), for VJ software.
+function recordLoop(btn) {
+    if (!window.MediaRecorder || !stage.captureStream) { setStatus('This browser cannot record the canvas.'); return; }
+    const type = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'].find(t => MediaRecorder.isTypeSupported(t));
+    if (!type) { setStatus('This browser cannot record video.'); return; }
+    const recorder = new MediaRecorder(stage.captureStream(60), { mimeType: type, videoBitsPerSecond: 16_000_000 });
+    const chunks = [], label = btn.textContent;
+    btn.classList.add('recording');
+    btn.textContent = 'REC…';
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    recorder.onstop = () => {
+        btn.classList.remove('recording');
+        btn.textContent = label;
+        const ext = type.startsWith('video/mp4') ? 'mp4' : 'webm';
+        const url = URL.createObjectURL(new Blob(chunks, { type }));
+        const name = `kinetix_loop_${Date.now()}.${ext}`;
+        setStatus(`✓ Download ${name}`, url, name);
+    };
+    recorder.start();
+    setTimeout(() => recorder.stop(), parseInt(btn.dataset.dur, 10) * 1000);
+}
+
+function syncShaderBank() {
+    document.querySelectorAll('#shaderBank button').forEach(b => b.classList.toggle('active', +b.dataset.shader === params.mode));
+}
+
+const padEls = {};
+document.querySelectorAll('.fx-pad').forEach(b => { padEls[b.dataset.fx] = b; });
+function syncPads() {
+    for (const fx in padEls) {
+        const on = fxOn(fx) || (fx === 'strobe' && autoFx.flash > 0.2);
+        if (padEls[fx].dataset.on !== String(on)) { padEls[fx].dataset.on = on; padEls[fx].classList.toggle('active', on); }
+    }
+}
+
+function renderSceneList() {
+    const list = document.getElementById('scene-list');
+    list.textContent = '';
+    scenes.forEach((sc, i) => {
+        const row = document.createElement('div');
+        row.className = 'scene-row';
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        dot.style.background = sc.color;
+        const label = document.createElement('span');
+        label.textContent = `${formatTime(sc.at)}.${Math.round(sc.at % 1 * 10)} · ${SHADER_NAMES[sc.mode]}`;
+        const del = document.createElement('button');
+        del.textContent = '✕';
+        del.title = 'Remove scene';
+        del.onclick = () => { scenes.splice(i, 1); activeScene = -1; renderSceneList(); };
+        row.append(dot, label, del);
+        list.appendChild(row);
+    });
+}
+
+function addSceneAtPlayhead() {
+    const at = audioEl && audioEl.src ? Math.round(audioEl.currentTime * 10) / 10 : 0;
+    scenes = scenes.filter(sc => Math.abs(sc.at - at) > 0.05);
+    scenes.push({ at, mode: params.mode, color: document.getElementById('colorCtrl').value });
+    scenes.sort((x, y) => x.at - y.at);
+    activeScene = scenes.findIndex(sc => sc.at === at);
+    renderSceneList();
+    setStatus(`Scene added at ${formatTime(at)}: ${SHADER_NAMES[params.mode]}.`);
+}
+
+function setColor(hex) {
+    params.color = hex;
+    colorMix = 1;
+    document.getElementById('colorCtrl').value = hex;
+    document.documentElement.style.setProperty('--accent', hex);
+}
+
+function bindSlider(id, valId, key, decimals = 2) {
+    const el = document.getElementById(id), vEl = document.getElementById(valId);
+    const apply = () => { params[key] = parseFloat(el.value); vEl.textContent = params[key].toFixed(decimals); };
+    el.addEventListener('input', apply);
+    return v => { el.value = v; apply(); };
+}
+
+const typing = () => ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName) && document.activeElement.type !== 'range' && document.activeElement.type !== 'checkbox';
+const FX_KEYS = { g: 'glitch', i: 'invert', b: 'hyper', x: 'pixel' };
+
+function bindControls() {
+    document.querySelectorAll('#shaderBank button').forEach(btn => btn.addEventListener('click', () => { params.mode = +btn.dataset.shader; syncShaderBank(); }));
+    bindSlider('speedCtrl', 'speedVal', 'speed');
+    bindSlider('zoomCtrl', 'zoomVal', 'zoom');
+    bindSlider('symCtrl', 'symVal', 'sym', 0);
+    bindSlider('hueCtrl', 'hueVal', 'hue');
+    const setLock = bindSlider('lockCtrl', 'lockVal', 'lock');
+    bindSlider('reactCtrl', 'reactVal', 'react');
+    document.getElementById('colorCtrl').addEventListener('input', e => setColor(e.target.value));
+
+    document.getElementById('upload-audio').onclick = () => document.getElementById('audio-file').click();
+    // iPhone/iPad grey out audio in iCloud Drive when the picker has a filter, so there any file is allowed and
+    // checked here instead.
+    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (isIOS) document.getElementById('audio-file').removeAttribute('accept');
+    document.getElementById('audio-file').onchange = e => {
+        const f = e.target.files[0]; if (!f) return;
+        if (!/^audio\//.test(f.type) && !/\.(mp3|m4a|wav|aac|flac|ogg|opus|aiff?|caf)$/i.test(f.name)) { setStatus('That file isn’t audio. Pick an MP3, M4A, WAV or similar.'); return; }
+        loadAudio(f);
+    };
+    document.getElementById('play').onclick = () => {
+        if (!audioEl || !audioEl.src) { document.getElementById('audio-file').click(); return; }
+        ensureAudio();
+        if (isPlaying) { audioEl.pause(); isPlaying = false; } else { audioEl.play(); isPlaying = true; }
+        updatePlay();
+    };
+    const seek = document.getElementById('seek');
+    seek.oninput = () => { seeking = true; if (audioEl && audioEl.duration) { audioEl.currentTime = seek.value / 1000 * audioEl.duration; activeScene = -1; } };
+    seek.onchange = () => { seeking = false; };
+
+    document.getElementById('tapBtn').onclick = triggerTap;
+    document.getElementById('synthBtn').onclick = e => { ensureAudio(); synthOn = !synthOn; nextBeatAt = 0; e.currentTarget.classList.toggle('active', synthOn); };
+    document.getElementById('micBtn').onclick = e => toggleMic(e.currentTarget);
+    document.getElementById('show-text').onchange = e => { params.showText = e.target.checked; };
+    document.getElementById('auto-fx').onchange = e => { params.autoFx = e.target.checked; if (!params.autoFx) autoFx = { glitch: 0, hyper: 0, flash: 0 }; };
+    document.getElementById('add-scene').onclick = addSceneAtPlayhead;
+    document.getElementById('export').onclick = exportMp4;
+    document.querySelectorAll('.rec-btn').forEach(btn => { btn.onclick = () => recordLoop(btn); });
+
+    // Momentary pads: on while pressed, with the pointer captured so sliding off still releases them.
+    for (const [fx, btn] of Object.entries(padEls)) {
+        btn.addEventListener('pointerdown', e => { e.preventDefault(); btn.setPointerCapture(e.pointerId); held[fx] = true; });
+        const off = () => { held[fx] = false; };
+        btn.addEventListener('pointerup', off);
+        btn.addEventListener('pointercancel', off);
+        btn.addEventListener('lostpointercapture', off);
+    }
+
+    // Drag the canvas to move the centre.
+    let dragging = false;
+    const moveCenter = e => { params.center = { x: e.clientX / window.innerWidth, y: 1 - e.clientY / window.innerHeight }; };
+    stage.addEventListener('pointerdown', e => { dragging = true; stage.setPointerCapture(e.pointerId); moveCenter(e); });
+    stage.addEventListener('pointermove', e => { if (dragging) moveCenter(e); });
+    stage.addEventListener('pointerup', () => { dragging = false; });
+    stage.addEventListener('pointercancel', () => { dragging = false; });
+    stage.addEventListener('dblclick', () => { params.center = { x: 0.5, y: 0.5 }; });
+
+    window.addEventListener('keydown', e => {
+        if (typing() || e.ctrlKey || e.metaKey || e.altKey) return;
+        const key = e.key.toLowerCase();
+        if (e.key >= '1' && e.key <= '6') { params.mode = +e.key - 1; syncShaderBank(); }
+        else if (e.code === 'Space') { e.preventDefault(); held.strobe = true; }
+        else if (FX_KEYS[key]) held[FX_KEYS[key]] = true;
+        else if (key === 't' && !e.repeat) triggerTap();
+        else if (key === 'h' && !e.repeat) document.body.classList.toggle('ui-hidden');
+        else if (key === 'f' && !e.repeat) { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen(); }
+    });
+    window.addEventListener('keyup', e => {
+        const key = e.key.toLowerCase();
+        if (e.code === 'Space') { e.preventDefault(); held.strobe = false; }   // also stops Space clicking a focused button
+        else if (FX_KEYS[key]) held[FX_KEYS[key]] = false;
+    });
+    window.addEventListener('blur', () => { for (const fx in held) held[fx] = false; });
+
+    return { setLock };
+}
+
+// Arriving from the Song Studio ("Make the video"): its title, artist and accent colour, with the palette pulled
+// most of the way toward the accent so the video matches the plan.
+function applyStudioHandoff(setLock) {
+    if (!new URLSearchParams(location.search).has('from')) return;
+    let h = null;
+    try { h = JSON.parse(localStorage.getItem('studio.handoff') || 'null'); } catch {}
+    if (!h) return;
+    if (h.title) document.getElementById('title').value = h.title;
+    if (h.artist) document.getElementById('artist').value = h.artist;
+    if (/^#[0-9a-f]{6}$/i.test(h.accent || '')) { setColor(h.accent); setLock(0.6); }
+    setStatus(`Set up for “${h.title}”. Load your finished track to start.`);
+}
+
+resize();
+if (EXPORT_JOB) {
+    document.body.classList.add('export-mode');
+    window.__visReady = true;
+} else {
+    const { setLock } = bindControls();
+    applyStudioHandoff(setLock);
+    requestAnimationFrame(animate);
+}
+</script>
+</body>
+</html>

@@ -116,7 +116,7 @@ Fill in every field of the response:
   "settings": { "weirdness": 0-100, "styleInfluence": 0-100, "variety": 0-100 or null, "vocalGender": "female" | "male" | "none" | "auto", "why": "one sentence" },
   "lyrics": "the Lyrics field",
   "visual": {
-    "visualizer": "monstercat" | "aetherflux",
+    "visualizer": "monstercat" | "aetherflux" | "kinetix",
     "accent": "#rrggbb",
     "palette": ["#rrggbb", "#rrggbb", "#rrggbb"],
     "artStyle": "one style line appended to every scene image prompt",
@@ -149,7 +149,7 @@ ${input.vocal === 'instrumental' ? '- INSTRUMENTAL: no sung words. Use only sect
 ${input.lyricsMode === 'mine' ? '- The person supplied their own lyrics. Keep their words. Only add or fix structure tags and performance cues. Do not rewrite lines unless the refine instruction asks you to.' : ''}
 
 VIDEO PLAN:
-- visualizer: "monstercat" (spectrum bars and particles with crossfading background scenes; right for most vocal songs, pop, hip-hop, R&B, rock, EDM) or "aetherflux" (a 3D particle galaxy; right for ambient, cinematic, trance, space or meditative music).
+- visualizer: "monstercat" (spectrum bars and particles with crossfading background scenes; right for most vocal songs, pop, hip-hop, R&B, rock, melodic EDM), "aetherflux" (a 3D particle galaxy; right for ambient, cinematic, trance, space or meditative music) or "kinetix" (abstract club shaders: tunnels, kaleidoscopes, a synthwave grid, flashes and glitches on the drops, no background images; right for techno, house, drum and bass, dubstep, hard EDM, synthwave and other club tracks).
 - accent: the colour of the spectrum bars. It must stand out on a dark background, so use a bright, saturated version of the song's key colour (never near-black or dark navy).
 - palette: three colours that describe the song, first one the accent family.
 - artStyle: one consistent illustration or photo style chosen for THIS song, ending with "no text, no watermark, 16:9". Range widely: cinematic 35mm film stills, anime film frames, contemporary ink wash, risograph print, oil painting, Super 8 home movie, neon noir photography, watercolour, claymation, 3D render. Pick the one that best carries the song's mood; never default to the same style.
@@ -193,7 +193,7 @@ const Song = z.object({
     }),
     lyrics: z.string(),
     visual: z.object({
-        visualizer: z.enum(['monstercat', 'aetherflux']),
+        visualizer: z.enum(['monstercat', 'aetherflux', 'kinetix']),
         accent: z.string(),
         palette: z.array(z.string()),
         artStyle: z.string(),
@@ -280,7 +280,7 @@ function tidy(r, input) {
                 why: str(s.why, 300),
             },
             visual: {
-                visualizer: pick(v.visualizer, ['monstercat', 'aetherflux'], 'monstercat'),
+                visualizer: pick(v.visualizer, ['monstercat', 'aetherflux', 'kinetix'], 'monstercat'),
                 accent, palette: palette.length ? palette : [accent],
                 artStyle: str(v.artStyle, 400), character: str(v.character, 400), scenes,
             },

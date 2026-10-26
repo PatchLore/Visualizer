@@ -7,12 +7,16 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
   Variety settings, lyrics with structure tags, three titles, a scene-by-scene video plan (palette, art style,
   image prompts tied to the lyrics), a YouTube kit and notes explaining the choices. Any result can be rewritten
   with a chip or a sentence. Written by Claude; the engine is `api/_lib/compose.js`.
-- **Two visualisers** that run entirely in the browser and export full-length MP4s. Audio and images stay on the
+- **Three visualisers** that run entirely in the browser and export full-length MP4s. Audio and images stay on the
   user's computer. "Make the video" in the Studio opens the right one with the title, artist and colour set.
   - **AetherFlux** (`aetherflux.html`): a 3D particle galaxy (three.js) that morphs between seven shapes, a
     beat-reactive centre with a logo, a classic spectrum, and a scene timeline.
   - **Monstercat** (`monstercat.html`): Monstercat-style spectrum bars, bass-driven particles, logo and
     artist/title (under the bars or top left), and background scenes that crossfade during the song.
+  - **KINETIX** (`kinetix.html`): six WebGL shaders (tunnel, mandala, plasma, vortex, hex grid, synthwave) driven
+    by the track's bass, mids and highs, with a single flash and hyperdrive on drops and short glitches on hard hits
+    (Auto FX), a shader/colour scene timeline and artist/title text. It also works as a live VJ tool: mic input,
+    tap tempo and a built-in kick, hold-to-play FX pads and keys, fullscreen, and short WebM loop recordings.
 
 ## Run it locally
 
@@ -72,7 +76,7 @@ button (or, when streaming to disk, shows where the file was saved). Nothing is 
 block a download started that long after the click and the file then looks lost. Rendering is refused on phones and
 tablets, where the tab runs out of memory and reloads part-way through.
 
-Expect roughly 2x the track length for Monstercat and 3x for AetherFlux on a typical laptop.
+Expect roughly 2x the track length for Monstercat and KINETIX and 3x for AetherFlux on a typical laptop.
 
 ## Browser support
 
