@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LOOP//FORGE GIF Loops</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #090a0f; --panel: #12151f; --border: rgba(255, 255, 255, 0.1);
+            --accent: #00f0ff; --accent2: #ff0066; --text: #eef2f9; --muted: #848d9f;
+            --font: 'JetBrains Mono', 'Fira Code', monospace;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; display: grid; grid-template-columns: 360px 1fr; }
+        @media (max-width: 900px) { body { grid-template-columns: 1fr; } .sidebar { max-height: none !important; border-right: 0 !important; } .stage { order: -1; } }
+
+        .sidebar { background: var(--panel); border-right: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; gap: 18px; overflow-y: auto; max-height: 100vh; }
+        .brand { border-bottom: 1px solid var(--border); padding-bottom: 14px; }
+        .brand-row { display: flex; align-items: center; justify-content: space-between; }
+        .brand h1 { font-size: 15px; letter-spacing: 2px; color: var(--accent); }
+        .brand nav { margin-top: 8px; font-size: 10px; color: var(--muted); }
+        .brand nav a { color: var(--muted); text-decoration: none; }
+        .brand nav a:hover { color: #fff; }
+        .badge { background: rgba(0, 240, 255, 0.12); color: var(--accent); border: 1px solid var(--accent); padding: 3px 8px; border-radius: 4px; font-size: 10px; }
+        .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 8px; }
+        .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        button {
+            background: rgba(255, 255, 255, 0.04); color: var(--text); border: 1px solid var(--border); padding: 9px 10px; border-radius: 6px;
+            font-family: var(--font); font-size: 11px; cursor: pointer; transition: all 0.15s ease; text-align: left;
+        }
+        button:hover { border-color: var(--accent); background: rgba(0, 240, 255, 0.08); }
+        button.active { background: var(--accent); color: #050608; font-weight: 700; border-color: var(--accent); box-shadow: 0 0 12px rgba(0, 240, 255, 0.35); }
+        .control-group { display: flex; flex-direction: column; gap: 10px; }
+        .ctrl { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 11px; }
+        .ctrl label { color: var(--muted); width: 105px; flex-shrink: 0; }
+        .ctrl input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); cursor: pointer; }
+        .ctrl select { flex: 1; min-width: 0; background: #0b0d14; color: var(--text); border: 1px solid var(--border); padding: 6px 8px; border-radius: 4px; font-family: var(--font); font-size: 11px; }
+        .check { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text); cursor: pointer; }
+        .val { width: 36px; text-align: right; color: var(--accent); font-size: 11px; flex-shrink: 0; }
+        .export-btn {
+            background: linear-gradient(135deg, #00f0ff, #0088ff); color: #000; font-weight: 800; text-align: center; padding: 12px; border: none;
+            font-size: 12px; letter-spacing: 1px; text-transform: uppercase; box-shadow: 0 4px 20px rgba(0, 240, 255, 0.3);
+        }
+        .export-btn:hover { background: linear-gradient(135deg, #33f3ff, #1a94ff); }
+        .export-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .progress-wrap { display: none; flex-direction: column; gap: 6px; }
+        .progress-bar { width: 100%; height: 6px; background: rgba(255, 255, 255, 0.08); border-radius: 3px; overflow: hidden; }
+        .progress-fill { height: 100%; width: 0%; background: var(--accent2); transition: width 0.1s linear; }
+        .hint { font-size: 10px; color: var(--muted); line-height: 1.5; }
+
+        .stage { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; gap: 20px; background: radial-gradient(circle at center, #141826 0%, #07080c 100%); min-width: 0; }
+        .canvas-card { position: relative; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7); background: #000; display: flex; max-width: 100%; }
+        #glCanvas { display: block; max-width: min(75vw, 100%); max-height: 70vh; }
+        @media (max-width: 900px) { #glCanvas { max-width: 100%; } }
+        .loop-hud { display: flex; align-items: center; gap: 14px; font-size: 11px; color: var(--muted); background: var(--panel); padding: 8px 16px; border-radius: 20px; border: 1px solid var(--border); }
+        .phase-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+        #resultContainer { display: none; flex-direction: column; align-items: center; gap: 10px; background: var(--panel); padding: 14px; border-radius: 8px; border: 1px solid var(--accent); }
+        #resultContainer img { max-width: 240px; border-radius: 4px; border: 1px solid var(--border); }
+        #resultInfo { font-size: 11px; color: var(--muted); text-align: center; line-height: 1.5; }
+        .download-link { color: #000; background: var(--accent); padding: 8px 14px; border-radius: 6px; text-decoration: none; font-size: 11px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<aside class="sidebar">
+    <div class="brand">
+        <div class="brand-row">
+            <h1>LOOP//FORGE</h1>
+            <span class="badge">SEAMLESS GIF ENGINE</span>
+        </div>
+        <nav><a href="index.html">Home</a> · <a href="kinetix.html">KINETIX</a> · <a href="monstercat.html">Monstercat</a> · <a href="aetherflux.html">AetherFlux</a></nav>
+    </div>
+
+    <div>
+        <div class="section-title">1. VFX shader preset</div>
+        <div class="preset-grid" id="presetGrid">
+            <button class="active" data-mode="0">01. Bio-Neural</button>
+            <button data-mode="1">02. Astral Quantum</button>
+            <button data-mode="2">03. Eldritch Fluid</button>
+            <button data-mode="3">04. Chrono Gear</button>
+            <button data-mode="4">05. Glitch Core</button>
+            <button data-mode="5">06. Neon City</button>
+        </div>
+    </div>
+
+    <div class="control-group">
+        <div class="section-title">2. Look</div>
+        <div class="ctrl"><label>Complexity</label><input type="range" id="compCtrl" min="1" max="8" step="0.5" value="4.0"><span class="val" id="compVal">4.0</span></div>
+        <div class="ctrl"><label>Zoom Scale</label><input type="range" id="zoomCtrl" min="0.4" max="2.5" step="0.05" value="1.0"><span class="val" id="zoomVal">1.00</span></div>
+        <div class="ctrl"><label>Color Palette</label><input type="range" id="hueCtrl" min="0" max="1" step="0.01" value="0.0"><span class="val" id="hueVal">0.00</span></div>
+        <div class="ctrl"><label>Glow / Bloom</label><input type="range" id="glowCtrl" min="0.3" max="2.5" step="0.05" value="1.2"><span class="val" id="glowVal">1.20</span></div>
+        <div class="ctrl"><label>Chromatic Ab.</label><input type="range" id="chromaCtrl" min="0.0" max="1.0" step="0.02" value="0.25"><span class="val" id="chromaVal">0.25</span></div>
+    </div>
+
+    <div class="control-group">
+        <div class="section-title">3. GIF loop settings</div>
+        <div class="ctrl">
+            <label>Dimensions</label>
+            <select id="sizeSelect">
+                <option value="320x320">320 × 320 (small, Discord emoji)</option>
+                <option value="480x480" selected>480 × 480 (square)</option>
+                <option value="540x360">540 × 360 (widescreen)</option>
+                <option value="360x640">360 × 640 (vertical, stories)</option>
+            </select>
+        </div>
+        <div class="ctrl">
+            <label>Loop length</label>
+            <select id="framesSelect">
+                <option value="38">1.5 s · 38 frames</option>
+                <option value="50" selected>2 s · 50 frames</option>
+                <option value="75">3 s · 75 frames</option>
+                <option value="100">4 s · 100 frames</option>
+            </select>
+        </div>
+        <label class="check"><input type="checkbox" id="ditherCtrl" checked> Dither (smoother glows, slightly larger file)</label>
+    </div>
+
+    <button class="export-btn" id="renderGifBtn">Render seamless .GIF</button>
+
+    <div class="progress-wrap" id="progressWrap">
+        <div style="display:flex; justify-content:space-between; font-size:11px;">
+            <span id="statusText">Capturing frames…</span>
+            <span id="pctText">0%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+
+    <div id="resultContainer">
+        <div class="section-title" style="margin:0;">Your GIF</div>
+        <img id="gifPreview" alt="The rendered GIF loop">
+        <div id="resultInfo"></div>
+        <a id="downloadGifLink" class="download-link" download="loop_forge.gif">⬇ Download .GIF</a>
+    </div>
+    <div class="hint">Rendered and encoded in your browser; nothing is uploaded. The preview plays at the GIF's speed (25 fps).</div>
+</aside>
+
+<main class="stage">
+    <div class="canvas-card"><canvas id="glCanvas" width="480" height="480"></canvas></div>
+    <div class="loop-hud">
+        <div class="phase-dot"></div>
+        <span>LOOP PHASE <strong id="phaseReadout" style="color:#fff;">0.00 rad</strong> · the last frame flows into the first</span>
+    </div>
+</main>
+
+<script>
+// ---- Seamless shaders ----
+// Everything moves with u_phase (0 to 1 over the loop). Motion uses whole turns of T = u_phase * TAU, colour uses
+// whole palette cycles of u_phase, and scrolling moves whole grid cells, so phase 1 draws exactly what phase 0 does.
+const canvas = document.getElementById('glCanvas');
+const gl = canvas.getContext('webgl', { antialias: false });
+
+const vs = `
+    attribute vec2 a_pos;
+    void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
+`;
+
+const fs = `
+    precision highp float;
+    uniform vec2 u_res;
+    uniform float u_phase;
+    uniform int u_mode;
+    uniform float u_comp;
+    uniform float u_zoom;
+    uniform float u_hue;
+    uniform float u_glow;
+    uniform float u_chroma;
+
+    #define PI 3.14159265359
+    #define TAU 6.28318530718
+
+    mat2 rot(float a) {
+        float s = sin(a), c = cos(a);
+        return mat2(c, -s, s, c);
+    }
+
+    vec3 palette(float t) {
+        vec3 a = vec3(0.5);
+        vec3 b = vec3(0.5);
+        vec3 c = vec3(1.0);
+        vec3 d = vec3(0.15, 0.45, 0.75) + u_hue;
+        return a + b * cos(TAU * (c * t + d));
+    }
+
+    vec2 fold(vec2 p, float n) {
+        float ang = TAU / max(1.0, floor(n));
+        float a = atan(p.y, p.x) + ang * 0.5;
+        a = mod(a, ang) - ang * 0.5;
+        return vec2(cos(a), sin(a)) * length(p);
+    }
+
+    vec3 renderScene(vec2 uv, float T) {
+        uv /= u_zoom;
+        vec3 col = vec3(0.0);
+
+        // 01: bio-digital neural network. Layers turn a whole turn per loop, alternating direction.
+        if (u_mode == 0) {
+            vec2 p = uv * 2.5;
+            for (float i = 1.0; i <= 6.0; i++) {
+                if (i > u_comp + 2.0) break;
+                p = abs(p) / dot(p, p) - 0.75;
+                p *= rot(T * (mod(i, 2.0) * 2.0 - 1.0) + i * 0.7);
+                float synapse = length(p.xy) - 0.2 * sin(T + i);
+                float spark = 0.015 / max(abs(synapse), 0.002);
+                col += palette(length(uv) + i * 0.2 + u_phase) * spark * 0.35;
+            }
+        }
+
+        // 02: astral quantum mandala. Turns one symmetry sector per loop, which looks identical to the start.
+        else if (u_mode == 1) {
+            float n = floor(u_comp * 2.0 + 4.0);
+            vec2 p = fold(uv * rot(T / n), n);
+            vec2 uv0 = p;
+            for (float i = 0.0; i < 4.0; i++) {
+                p = fract(p * 1.6) - 0.5;
+                float d = length(p) * exp(-length(uv0));
+                vec3 c = palette(length(uv0) + i * 0.3 + u_phase);
+                d = sin(d * 8.0 + T) / 8.0;
+                d = pow(0.012 / max(abs(d), 0.001), 1.15);
+                col += c * d;
+            }
+        }
+
+        // 03: eldritch fluid alchemy
+        else if (u_mode == 2) {
+            vec2 p = uv * 3.0;
+            float radius = length(p);
+            p *= rot(radius * 1.8 - T);
+            for (float i = 1.0; i < 6.0; i++) {
+                p.x += (0.45 / i) * sin(i * p.y + T + cos(T));
+                p.y += (0.45 / i) * cos(i * p.x + T + sin(T));
+            }
+            float liquid = sin(p.x * 2.0 + p.y * 2.0) * 0.5 + 0.5;
+            col = palette(liquid + u_phase) * (0.4 + 0.8 * liquid);
+            col += vec3(0.15, 0.9, 0.6) * (0.02 / max(abs(sin(radius * 6.0 - T)), 0.005));
+        }
+
+        // 04: chrono-fractal clockwork
+        else if (u_mode == 3) {
+            vec2 p = uv;
+            float r = length(p);
+            float a = atan(p.y, p.x);
+            for (float i = 1.0; i <= 5.0; i++) {
+                float ringR = i * 0.14;
+                float dir = mod(i, 2.0) == 0.0 ? 1.0 : -1.0;
+                float teeth = sin(a * floor(u_comp * 4.0 + i * 4.0) + T * dir);
+                float gear = abs(r - ringR + teeth * 0.012);
+                float glow = 0.006 / max(gear, 0.0015);
+                col += mix(vec3(1.0, 0.55, 0.1), palette(i * 0.2 + u_phase), 0.4) * glow;
+            }
+        }
+
+        // 05: overdrive glitch core
+        else if (u_mode == 4) {
+            vec2 p = uv;
+            float slice = floor(p.y * (8.0 + u_comp * 3.0));
+            float glitchShift = sin(slice * 37.0 + T) * cos(slice * 13.0 - T);
+            if (abs(glitchShift) > 0.65) p.x += glitchShift * 0.18;
+            vec2 grid = abs(fract(p * 6.0 + vec2(0.0, u_phase * 2.0)) - 0.5);
+            float line = min(grid.x, grid.y);
+            float neon = 0.02 / max(line, 0.002);
+            col = palette(slice * 0.1 + u_phase) * neon;
+        }
+
+        // 06: neon wireframe city. The floor scrolls 4 cells per loop and its colour one palette cycle.
+        else {
+            vec2 p = uv;
+            if (p.y < 0.05) {
+                vec2 gp = vec2(p.x / abs(p.y - 0.08), 1.0 / abs(p.y - 0.08));
+                gp.y += u_phase * 4.0;
+                vec2 g = abs(fract(gp) - 0.5);
+                float wire = 0.025 / max(min(g.x, g.y), 0.002);
+                col = palette(gp.y * 0.25 + u_hue) * wire * abs(p.y);
+            } else {
+                float colId = floor(p.x * 14.0);
+                float bHeight = 0.15 + 0.25 * abs(sin(colId * 43.1));
+                if (p.y < bHeight && abs(p.x) > 0.12) {
+                    vec2 win = abs(fract(p * 28.0) - 0.5);
+                    float edge = 0.03 / max(min(win.x, win.y), 0.004);
+                    col = palette(colId * 0.1 + u_phase) * edge * 0.6;
+                }
+            }
+            col += vec3(0.0, 0.9, 1.0) * (0.012 / max(abs(p.y - 0.05), 0.002));
+        }
+
+        return col * u_glow;
+    }
+
+    void main() {
+        vec2 uv = (gl_FragCoord.xy - 0.5 * u_res.xy) / u_res.y;
+        float T = u_phase * TAU;
+
+        // Chromatic aberration: red and blue drawn slightly apart, more toward the edges
+        float ca = u_chroma * 0.018 * length(uv);
+        vec3 colR = renderScene(uv + vec2(ca, 0.0), T);
+        vec3 colG = renderScene(uv, T);
+        vec3 colB = renderScene(uv - vec2(ca, 0.0), T);
+
+        vec3 finalCol = vec3(colR.r, colG.g, colB.b);
+        finalCol = finalCol / (1.0 + finalCol * 0.35);   // soft tone mapping
+        finalCol *= 1.0 - 0.3 * dot(uv, uv);             // vignette
+
+        gl_FragColor = vec4(clamp(finalCol, 0.0, 1.0), 1.0);
+    }
+`;
+
+function createShader(type, source) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, source);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
+    return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, createShader(gl.VERTEX_SHADER, vs));
+gl.attachShader(prog, createShader(gl.FRAGMENT_SHADER, fs));
+gl.linkProgram(prog);
+gl.useProgram(prog);
+const vbo = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+const posAttr = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(posAttr);
+gl.vertexAttribPointer(posAttr, 2, gl.FLOAT, false, 0, 0);
+const u = {};
+for (const n of ['res', 'phase', 'mode', 'comp', 'zoom', 'hue', 'glow', 'chroma']) u[n] = gl.getUniformLocation(prog, `u_${n}`);
+
+const state = { mode: 0, comp: 4.0, zoom: 1.0, hue: 0.0, glow: 1.2, chroma: 0.25, isEncoding: false };
+const FRAME_MS = 40;   // 25 fps; GIF delays are whole hundredths of a second
+
+function drawFrame(phase) {
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.uniform2f(u.res, canvas.width, canvas.height);
+    gl.uniform1f(u.phase, phase);
+    gl.uniform1i(u.mode, state.mode);
+    gl.uniform1f(u.comp, state.comp);
+    gl.uniform1f(u.zoom, state.zoom);
+    gl.uniform1f(u.hue, state.hue);
+    gl.uniform1f(u.glow, state.glow);
+    gl.uniform1f(u.chroma, state.chroma);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+// Live preview at the GIF's own length and frame rate, stepping the same frames the GIF will hold.
+const phaseReadout = document.getElementById('phaseReadout');
+const framesSelect = document.getElementById('framesSelect');
+function animate(now) {
+    requestAnimationFrame(animate);
+    if (state.isEncoding) return;
+    const frames = +framesSelect.value;
+    const frame = Math.floor(now / FRAME_MS) % frames, phase = frame / frames;
+    drawFrame(phase);
+    phaseReadout.textContent = `${(phase * Math.PI * 2).toFixed(2)} rad`;
+}
+requestAnimationFrame(animate);
+
+// ---- Controls ----
+document.querySelectorAll('#presetGrid button').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('#presetGrid button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state.mode = parseInt(btn.dataset.mode, 10);
+    });
+});
+function bindRange(id, valId, key, dec = 2) {
+    const el = document.getElementById(id), v = document.getElementById(valId);
+    el.addEventListener('input', () => { state[key] = parseFloat(el.value); v.textContent = state[key].toFixed(dec); });
+}
+bindRange('compCtrl', 'compVal', 'comp', 1);
+bindRange('zoomCtrl', 'zoomVal', 'zoom', 2);
+bindRange('hueCtrl', 'hueVal', 'hue', 2);
+bindRange('glowCtrl', 'glowVal', 'glow', 2);
+bindRange('chromaCtrl', 'chromaVal', 'chroma', 2);
+document.getElementById('sizeSelect').addEventListener('change', e => {
+    const [w, h] = e.target.value.split('x').map(Number);
+    canvas.width = w;
+    canvas.height = h;
+});
+
+// ---- GIF encoding (gifenc, in the browser) ----
+// One palette for the whole loop, built from samples of every frame, so colours never flicker from frame to frame
+// (gif.js-style per-frame palettes do). Optional ordered dithering softens banding in the glows; its pattern is
+// fixed on screen, so it doesn't crawl as the loop plays.
+let gifenc = null;
+const loadGifenc = async () => gifenc || (gifenc = await import('https://cdn.jsdelivr.net/npm/gifenc@1.0.3/dist/gifenc.esm.js'));
+const yieldNow = () => new Promise(r => setTimeout(r));
+const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+
+function dither(px, w, h, amount) {
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4, d = (BAYER4[(y & 3) * 4 + (x & 3)] / 16 - 0.47) * amount;
+        px[i] = Math.max(0, Math.min(255, px[i] + d));
+        px[i + 1] = Math.max(0, Math.min(255, px[i + 1] + d));
+        px[i + 2] = Math.max(0, Math.min(255, px[i + 2] + d));
+    }
+}
+
+function formatBytes(n) { return n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`; }
+
+const btn = document.getElementById('renderGifBtn');
+btn.addEventListener('click', async () => {
+    const progressWrap = document.getElementById('progressWrap'), progressFill = document.getElementById('progressFill');
+    const statusText = document.getElementById('statusText'), pctText = document.getElementById('pctText');
+    const resultContainer = document.getElementById('resultContainer');
+    const setProgress = (p, text) => { progressFill.style.width = `${Math.round(p * 100)}%`; pctText.textContent = `${Math.round(p * 100)}%`; if (text) statusText.textContent = text; };
+
+    btn.disabled = true;
+    state.isEncoding = true;
+    resultContainer.style.display = 'none';
+    progressWrap.style.display = 'flex';
+    setProgress(0, 'Loading the encoder…');
+    try {
+        const { GIFEncoder, quantize, applyPalette } = await loadGifenc();
+        const frames = +framesSelect.value, w = canvas.width, h = canvas.height;
+        const grab = document.createElement('canvas');
+        grab.width = w; grab.height = h;
+        const g = grab.getContext('2d', { willReadFrequently: true });
+
+        // Frames 0 to N-1 of the loop; frame N would be frame 0 again.
+        const shots = [];
+        for (let i = 0; i < frames; i++) {
+            drawFrame(i / frames);
+            g.drawImage(canvas, 0, 0);   // same task as the draw, so the WebGL buffer is still there
+            const px = g.getImageData(0, 0, w, h).data;
+            if (document.getElementById('ditherCtrl').checked) dither(px, w, h, 10);
+            shots.push(px);
+            if (i % 4 === 0) { setProgress(0.4 * i / frames, 'Drawing the loop…'); await yieldNow(); }
+        }
+
+        setProgress(0.4, 'Choosing the colours…');
+        await yieldNow();
+        const stride = Math.max(1, Math.round(frames * w * h / 500000));   // about half a million sampled pixels
+        const sample = new Uint8Array(Math.ceil(frames * w * h / stride) * 4);
+        let k = 0;
+        for (const px of shots) for (let p = 0; p < px.length; p += 4 * stride) { sample[k++] = px[p]; sample[k++] = px[p + 1]; sample[k++] = px[p + 2]; sample[k++] = 255; }
+        const palette = quantize(sample.subarray(0, k), 256);
+
+        const gif = GIFEncoder();
+        for (let i = 0; i < frames; i++) {
+            const index = applyPalette(shots[i], palette);
+            gif.writeFrame(index, w, h, i === 0 ? { palette, delay: FRAME_MS, repeat: 0 } : { delay: FRAME_MS });
+            shots[i] = null;
+            if (i % 4 === 0) { setProgress(0.45 + 0.55 * i / frames, 'Encoding the GIF…'); await yieldNow(); }
+        }
+        gif.finish();
+
+        const blob = new Blob([gif.bytes()], { type: 'image/gif' });
+        const url = URL.createObjectURL(blob);
+        const old = document.getElementById('downloadGifLink').href;
+        if (old.startsWith('blob:')) URL.revokeObjectURL(old);
+        const name = `loopforge_${['bio-neural', 'astral', 'fluid', 'clockwork', 'glitch', 'neon-city'][state.mode]}_${w}x${h}.gif`;
+        document.getElementById('gifPreview').src = url;
+        const link = document.getElementById('downloadGifLink');
+        link.href = url;
+        link.download = name;
+        document.getElementById('resultInfo').textContent = `${w}×${h} · ${frames} frames · ${(frames * FRAME_MS / 1000).toFixed(1)} s · ${formatBytes(blob.size)}`
+            + (blob.size > 10e6 ? ' · over 10 MB: Discord and some sites will refuse it, so try a smaller size or a shorter loop.' : '');
+        resultContainer.style.display = 'flex';
+        progressWrap.style.display = 'none';
+    } catch (err) {
+        setProgress(0, `⚠ ${err.message || 'The GIF could not be made.'}`);
+    } finally {
+        btn.disabled = false;
+        state.isEncoding = false;
+    }
+});
+</script>
+</body>
+</html>

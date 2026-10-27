@@ -23,6 +23,11 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
     and ½/2× fixes a tempo detected an octave off. The plan is plain data, so the preview and the MP4 match. It
     also works as a live VJ tool: mic input, tap tempo and a built-in kick, hold-to-play FX pads and keys,
     fullscreen, and short WebM loop recordings.
+- **LOOP//FORGE** (`loopforge.html`): seamless looping GIFs from six VFX shaders (no track needed), for Discord,
+  socials and stream overlays. Every motion completes whole turns, palette cycles or grid cells over the loop, so
+  the last frame flows into the first. Encoded in the browser with [gifenc](https://github.com/mattdesl/gifenc)
+  (loaded from jsDelivr, pinned to 1.0.3) using one palette for the whole loop, so colours don't flicker, with an
+  optional fixed ordered dither to smooth the glows. Works on phones too, since it doesn't need WebCodecs.
 
 ## Run it locally
 
