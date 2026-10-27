@@ -91,11 +91,11 @@ function readInput(b) {
 }
 
 // ---- Free daily limit (only when a KV namespace is bound as QUOTA) ----
-async function useQuota(request, env) {
+// Also used by the shader writer (api/_lib/shader.js), which counts under its own prefix and limit.
+export async function useQuota(request, env, { prefix = 'q', limit = Number(env.FREE_DAILY_LIMIT || 5) } = {}) {
     if (!env.QUOTA) return null;
-    const limit = Number(env.FREE_DAILY_LIMIT || 5);
     const who = request.headers.get('cf-connecting-ip') || 'unknown';
-    const key = `q:${new Date().toISOString().slice(0, 10)}:${who}`;
+    const key = `${prefix}:${new Date().toISOString().slice(0, 10)}:${who}`;
     const used = Number(await env.QUOTA.get(key)) || 0;
     if (used >= limit) return { limit, left: -1 };
     await env.QUOTA.put(key, String(used + 1), { expirationTtl: 60 * 60 * 26 });

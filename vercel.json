@@ -1,6 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/compose.js": { "maxDuration": 60 }
+    "api/compose.js": {
+      "maxDuration": 60
+    },
+    "api/shader.js": {
+      "maxDuration": 60
+    }
   }
 }

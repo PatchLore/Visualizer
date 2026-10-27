@@ -28,6 +28,11 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
   the last frame flows into the first. Encoded in the browser with [gifenc](https://github.com/mattdesl/gifenc)
   (loaded from jsDelivr, pinned to 1.0.3) using one palette for the whole loop, so colours don't flicker, with an
   optional fixed ordered dither to smooth the glows. Works on phones too, since it doesn't need WebCodecs.
+  **Describe a loop** writes a new one from a prompt: `api/_lib/shader.js` has Claude write a GLSL `scene()`
+  function to the same seamless rules, and the page compiles it and checks it (it compiles, isn't black, moves,
+  matches itself after one loop, and draws a 480x480 frame in under 250 ms). Anything that fails goes back with the
+  problem for a fix, twice at most. Working loops become presets saved in the browser, and can be changed with a
+  sentence ("make it blue"). Abstract and graphic ideas work best; real-world subjects come out as neon line art.
 
 ## Run it locally
 
@@ -50,9 +55,9 @@ files directly won't export.
 
 ### Vercel (current)
 
-The repo deploys to Vercel as a static site plus one function: `api/compose.js`, which wraps the engine in
-`api/_lib/compose.js` (`vercel.json` gives it up to 60 seconds). Vercel never serves `api/` as static files, so
-the prompt stays private. No build step.
+The repo deploys to Vercel as a static site plus two functions: `api/compose.js` (the Song Studio) and
+`api/shader.js` (LOOP//FORGE's loop writer), which wrap the engines in `api/_lib/` (`vercel.json` gives each up to
+60 seconds). Vercel never serves `api/` as static files, so the prompts stay private. No build step.
 
 In the Vercel project, under Settings → Environment Variables, add:
 
@@ -60,14 +65,17 @@ In the Vercel project, under Settings → Environment Variables, add:
 - `STUDIO_ACCESS_CODE` (recommended until payments exist): the Studio asks for this code once per browser, so
   strangers who find the URL can't spend your key
 - `AI_MODEL` / `AI_EFFORT` if you change them
+- `SHADER_EFFORT` for the loop writer: `low` by default (about 15 seconds per loop), `medium` takes about 55 seconds,
+  too close to Vercel's 60-second limit
 
 Redeploy after changing variables.
 
 ### Cloudflare Pages (alternative)
 
 Create a Pages project from the repo (no build command, output directory `/`); Cloudflare runs
-`functions/api/compose.js`, which re-exports the same engine. Add the same variables under Settings → Variables and Secrets. Binding a KV
-namespace as `QUOTA` turns on a free daily limit per visitor (`FREE_DAILY_LIMIT`, default 5).
+`functions/api/compose.js` and `functions/api/shader.js`, which re-export the same engines. Add the same variables under Settings → Variables and Secrets. Binding a KV
+namespace as `QUOTA` turns on a free daily limit per visitor (`FREE_DAILY_LIMIT`, default 5 songs;
+`SHADER_DAILY_LIMIT`, default 20 loop requests, fixes included).
 
 `test-assets/`, `Music/`, `.env` and `node_modules/` are git-ignored and never deployed.
 
