@@ -12,10 +12,11 @@
 <header class="top">
     <a class="brand" href="index.html"><span class="mark"></span>Music Visualiser</a>
     <nav>
-        <a href="monstercat.html">Monstercat</a>
+        <a href="spectrum.html">Spectrum</a>
         <a href="aetherflux.html">AetherFlux</a>
         <a href="kinetix.html">KINETIX</a>
         <a href="loopforge.html">GIF loops</a>
+        <a href="#pro">Pro</a>
     </nav>
 </header>
 
@@ -23,6 +24,30 @@
     <section class="hero">
         <h1>Describe the music you imagine.</h1>
         <p class="lead">Get a Suno-ready prompt, lyrics and a scene-by-scene video plan. When your track is made, turn it into a visualiser video, right here in your browser.</p>
+    </section>
+
+    <section class="showcase" aria-label="Made with these tools">
+        <div class="show-grid">
+            <a class="show" href="kinetix.html">
+                <video muted loop playsinline preload="none" poster="examples/kinetix.jpg" data-src="examples/kinetix.mp4"></video>
+                <span><b>KINETIX</b> auto-directed to the song: an 8-bit build, then the drop</span>
+            </a>
+            <a class="show" href="spectrum.html">
+                <video muted loop playsinline preload="none" poster="examples/spectrum.jpg" data-src="examples/spectrum.mp4"></video>
+                <span><b>Spectrum</b> bars and particles under your name</span>
+            </a>
+            <a class="show" href="aetherflux.html">
+                <video muted loop playsinline preload="none" poster="examples/aetherflux.jpg" data-src="examples/aetherflux.mp4"></video>
+                <span><b>AetherFlux</b> a particle galaxy around your title</span>
+            </a>
+        </div>
+        <div class="loop-grid">
+            <a class="show" href="loopforge.html"><video muted loop playsinline preload="none" poster="examples/loop-jellyfish.jpg" data-src="examples/loop-jellyfish.mp4"></video><span><b>AI loop</b> “a neon jellyfish pulsing in a dark ocean”</span></a>
+            <a class="show" href="loopforge.html"><video muted loop playsinline preload="none" poster="examples/loop-astral.jpg" data-src="examples/loop-astral.mp4"></video><span><b>GIF loop</b> Astral Quantum</span></a>
+            <a class="show" href="loopforge.html"><video muted loop playsinline preload="none" poster="examples/loop-neon-city.jpg" data-src="examples/loop-neon-city.mp4"></video><span><b>GIF loop</b> Neon City</span></a>
+            <a class="show" href="loopforge.html"><video muted loop playsinline preload="none" poster="examples/loop-clockwork.jpg" data-src="examples/loop-clockwork.mp4"></video><span><b>GIF loop</b> Chrono Gear</span></a>
+        </div>
+        <p class="hint">Real exports from these tools, shown without sound. Your own audio never leaves your computer.</p>
     </section>
 
     <form id="compose" class="card composer" autocomplete="off">
@@ -156,7 +181,7 @@
             <ol id="scenes" class="scenes"></ol>
             <div class="plan-actions">
                 <button class="copy" data-copy="scenes">Copy all scene prompts</button>
-                <a id="make-video" class="primary as-button" href="monstercat.html?from=studio">Made the track? Make the video →</a>
+                <a id="make-video" class="primary as-button" href="spectrum.html?from=studio">Made the track? Make the video →</a>
             </div>
         </article>
 
@@ -182,9 +207,9 @@
                 <h3>AetherFlux</h3>
                 <p>A 3D particle galaxy that morphs between seven shapes, with a beat-reactive centre for your logo.</p>
             </a>
-            <a class="card vis monster" href="monstercat.html">
+            <a class="card vis monster" href="spectrum.html">
                 <div class="preview" id="bars"></div>
-                <h3>Monstercat</h3>
+                <h3>Spectrum</h3>
                 <p>Spectrum bars and rushing particles, your logo and name, and background scenes that crossfade with the song.</p>
             </a>
             <a class="card vis kinetix" href="kinetix.html">
@@ -200,9 +225,37 @@
         </div>
     </section>
 
+    <section class="pro" id="pro">
+        <h2>Free and Pro</h2>
+        <p class="lead small">The visualisers and GIF presets are free. Pro adds the AI tools.</p>
+        <div class="grid two">
+            <div class="card tier">
+                <h3>Free</h3>
+                <p class="price">$0</p>
+                <ul>
+                    <li>Spectrum, AetherFlux and KINETIX, with the auto-director</li>
+                    <li>Full-length 1080p MP4s, plus 9:16 for Shorts</li>
+                    <li>Seamless GIF loops from six presets</li>
+                    <li>Everything renders in your browser; nothing is uploaded</li>
+                </ul>
+            </div>
+            <div class="card tier pro-tier">
+                <h3>Pro</h3>
+                <p class="price" id="pro-price"></p>
+                <ul>
+                    <li>Song Studio: Suno-ready style prompts, lyrics, a video plan and a YouTube kit for every idea</li>
+                    <li>AI loops: describe any GIF loop and get it in about 15 seconds</li>
+                    <li>Everything in Free</li>
+                </ul>
+                <a class="primary as-button" id="pro-buy" href="#pro" rel="noopener">Get Pro</a>
+                <p class="hint" id="pro-note">After paying you'll get your access code by email, usually within a day. Enter it once in this browser.</p>
+            </div>
+        </div>
+    </section>
+
     <footer>
         <p>Your audio and images never leave your computer. Prompts are written by AI and checked against Suno's limits; always listen before you publish.</p>
-        <p>Monstercat style after caseif/vis.js (reimplemented). Not affiliated with Suno, Udio or Monstercat.</p>
+        <p>Spectrum bar analysis after caseif/vis.js (reimplemented). Not affiliated with Suno or Udio.</p>
     </footer>
 </main>
 
@@ -220,6 +273,9 @@
     <option>Playful</option><option>Sensual</option><option>Triumphant</option><option>Lonely</option>
 </datalist>
 
+<script src="js/config.js"></script>
+<script src="js/analytics.js"></script>
 <script src="js/studio.js"></script>
+<script src="js/showcase.js"></script>
 </body>
 </html>

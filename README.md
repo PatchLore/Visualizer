@@ -11,7 +11,7 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
   user's computer. "Make the video" in the Studio opens the right one with the title, artist and colour set.
   - **AetherFlux** (`aetherflux.html`): a 3D particle galaxy (three.js) that morphs between seven shapes, a
     beat-reactive centre with a logo, a classic spectrum, and a scene timeline.
-  - **Monstercat** (`monstercat.html`): Monstercat-style spectrum bars, bass-driven particles, logo and
+  - **Spectrum** (`spectrum.html`, formerly Monstercat; `monstercat.html` redirects): classic label-style spectrum bars, bass-driven particles, logo and
     artist/title (under the bars or top left), and background scenes that crossfade during the song.
   - **KINETIX** (`kinetix.html`): six WebGL shaders (tunnel, mandala, plasma, vortex, hex grid, synthwave) driven
     by the track's bass, mids and highs, with artist/title text. Loading a track runs the **auto-director**
@@ -33,6 +33,19 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
   matches itself after one loop, and draws a 480x480 frame in under 250 ms). Anything that fails goes back with the
   problem for a fix, twice at most. Working loops become presets saved in the browser, and can be changed with a
   sentence ("make it blue"). Abstract and graphic ideas work best; real-world subjects come out as neon line art.
+
+## Home page, Pro and analytics
+
+- **Showcase**: the home page opens with real exports in `examples/` (muted MP4s with poster frames, played only
+  while on screen, never for people who prefer reduced motion). They were rendered from this app's own export hooks.
+- **Free and Pro**: the visualisers and GIF presets are free; Pro is the Song Studio and AI loops, which already need
+  the access code (`STUDIO_ACCESS_CODE`) when one is set. Put a Stripe Payment Link and the price in `js/config.js`;
+  until then the button says "Coming soon". Stripe collects the buyer's email: reply with the access code.
+  Cancelling the access-code prompt in the Studio or LOOP//FORGE points to Pro.
+- **Analytics**: `js/analytics.js` loads Vercel Web Analytics on every page (switch on Analytics in the Vercel
+  project; nothing loads locally) and records key events with `track()`: Studio song, Make the video, Export
+  started and Export finished (per visualiser), AI loop, GIF rendered and Get Pro. Custom events need a Vercel plan
+  that includes them; page views work on every plan.
 
 ## Run it locally
 
@@ -95,7 +108,7 @@ button (or, when streaming to disk, shows where the file was saved). Nothing is 
 block a download started that long after the click and the file then looks lost. Rendering is refused on phones and
 tablets, where the tab runs out of memory and reloads part-way through.
 
-Expect roughly 2x the track length for Monstercat and KINETIX and 3x for AetherFlux on a typical laptop.
+Expect roughly 2x the track length for Spectrum and KINETIX and 3x for AetherFlux on a typical laptop.
 
 ## Browser support
 
@@ -113,5 +126,5 @@ Tested so far in a Chromium-based browser on Windows (H.264 + Opus, in-memory pa
 Split out of the RemotionVideo studio, where the same pages export through a server (headless Chrome + ffmpeg).
 The two copies are now separate; changes to one aren't copied to the other.
 
-Third-party code: three.js r128 and the Tailwind Play CDN build are in `vendor/`. The Monstercat style follows the
-approach in caseif/vis.js (reimplemented). Not affiliated with Monstercat.
+Third-party code: three.js r128 and the Tailwind Play CDN build are in `vendor/`. The Spectrum bar analysis follows the
+approach in caseif/vis.js (reimplemented).

@@ -72,10 +72,14 @@
             });
             let res = await send();
             let data = await res.json().catch(() => ({ error: 'The server sent an unexpected reply.' }));
-            // Private deployments ask for an access code once; it's remembered in this browser.
+            // The Studio is part of Pro: deployments with an access code ask for it once; it's remembered in this
+            // browser. Cancelling shows what Pro includes.
             if (res.status === 401 && data.needCode) {
-                const code = window.prompt('This Studio is private for now. Enter your access code:');
-                if (!code) throw new Error('The Studio needs an access code.');
+                const code = window.prompt('The Song Studio is part of Pro. Enter your access code (or Cancel to see Pro):');
+                if (!code) {
+                    document.getElementById('pro')?.scrollIntoView({ behavior: 'smooth' });
+                    throw new Error('The Song Studio is part of Pro. See Free and Pro below.');
+                }
                 store.set('studio.code', code.trim());
                 res = await send();
                 data = await res.json().catch(() => ({ error: 'The server sent an unexpected reply.' }));
@@ -104,6 +108,7 @@
         }
         const data = await compose(input, 'Writing your song');
         if (!data) return;
+        window.track && window.track('Studio song', { target: input.target });
         current = { input, result: data.result, warnings: data.warnings || [], title: 0 };
         save(true);
         render();
@@ -193,7 +198,7 @@
         const swatches = $('swatches');
         swatches.textContent = '';
         [v.accent, ...v.palette.filter(c => c.toLowerCase() !== v.accent.toLowerCase())].slice(0, 4).forEach(c => { const i = el('i'); i.style.background = c; i.title = c; swatches.appendChild(i); });
-        const visName = { aetherflux: 'AetherFlux', kinetix: 'KINETIX' }[v.visualizer] || 'Monstercat';
+        const visName = { aetherflux: 'AetherFlux', kinetix: 'KINETIX' }[v.visualizer] || 'Spectrum';
         $('plan-summary').textContent = `${visName} visualiser · ${v.artStyle.replace(/,?\s*no text.*$/i, '')}`;
         const scenes = $('scenes');
         scenes.textContent = '';
@@ -206,7 +211,7 @@
             li.appendChild(copy);
             scenes.appendChild(li);
         });
-        $('make-video').href = `${['aetherflux', 'kinetix'].includes(v.visualizer) ? v.visualizer : 'monstercat'}.html?from=studio`;
+        $('make-video').href = `${['aetherflux', 'kinetix'].includes(v.visualizer) ? v.visualizer : 'spectrum'}.html?from=studio`;   // older results say 'monstercat'
 
         // YouTube kit
         $('yt-title').textContent = r.youtube.title;
@@ -259,6 +264,7 @@
 
     // ---- Hand-off to the visualisers ----
     function handOff() {
+        window.track && window.track('Make the video', { visualizer: current.result.visual.visualizer });
         const r = current.result;
         store.set('studio.handoff', {
             title: chosenTitle(), artist: current.input.artist || '', accent: r.visual.accent, palette: r.visual.palette,
@@ -290,7 +296,7 @@
     $('description').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) $('compose').requestSubmit(); });
     $('make-video').addEventListener('click', handOff);
 
-    // Monstercat card: a row of bars with staggered timing.
+    // Spectrum card: a row of bars with staggered timing.
     const bars = $('bars');
     for (let i = 0; i < 34; i++) {
         const b = el('div', 'bar');

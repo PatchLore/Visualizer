@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LOOP//FORGE GIF Loops</title>
+    <script src="js/analytics.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -87,7 +88,7 @@
             <h1>LOOP//FORGE</h1>
             <span class="badge">SEAMLESS GIF ENGINE</span>
         </div>
-        <nav><a href="index.html">Home</a> · <a href="kinetix.html">KINETIX</a> · <a href="monstercat.html">Monstercat</a> · <a href="aetherflux.html">AetherFlux</a></nav>
+        <nav><a href="index.html">Home</a> · <a href="kinetix.html">KINETIX</a> · <a href="spectrum.html">Spectrum</a> · <a href="aetherflux.html">AetherFlux</a></nav>
     </div>
 
     <div class="control-group">
@@ -509,8 +510,8 @@ async function askShader(payload) {
     let data = await res.json().catch(() => ({ error: 'The server sent an unexpected reply.' }));
     // Private deployments ask for the Studio's access code once; it's remembered in this browser.
     if (res.status === 401 && data.needCode) {
-        const code = window.prompt('Loop generation is private for now. Enter your access code:');
-        if (!code) throw new Error('Generating loops needs an access code.');
+        const code = window.prompt('AI loops are part of Pro. Enter your access code (or Cancel to see Pro):');
+        if (!code) { const e = new Error('AI loops are part of Pro. '); e.pro = true; throw e; }
         store.set('studio.code', code.trim());
         res = await send();
         data = await res.json().catch(() => ({ error: 'The server sent an unexpected reply.' }));
@@ -579,6 +580,7 @@ async function generateLoop({ prompt, previous, change, base }) {
                 renderPresets();
                 selectCustom(entry);
                 setAiStatus(`✓ ${result.name}: ${result.summary || 'ready'}${attempt ? ` (fixed ${attempt === 1 ? 'once' : 'twice'})` : ''}`);
+                window.track && window.track(change ? 'AI loop changed' : 'AI loop', { fixes: attempt });
                 return;
             }
             if (check.built) gl.deleteProgram(check.built.program);
@@ -588,6 +590,7 @@ async function generateLoop({ prompt, previous, change, base }) {
         }
     } catch (err) {
         setAiStatus(err.message === 'Failed to fetch' ? 'Could not reach the server. Check your connection and try again.' : err.message, true);
+        if (err.pro) { const a = document.createElement('a'); a.href = 'index.html#pro'; a.textContent = 'See Pro →'; a.style.color = 'var(--accent)'; aiStatus.appendChild(a); }
     } finally {
         clearInterval(timer);
         state.busy = false;
@@ -701,6 +704,7 @@ btn.addEventListener('click', async () => {
             + (blob.size > 10e6 ? ' · over 10 MB: Discord and some sites will refuse it, so try a smaller size or a shorter loop.' : '');
         resultContainer.style.display = 'flex';
         progressWrap.style.display = 'none';
+        window.track && window.track('GIF rendered', { size: `${w}x${h}`, frames, ai: !!state.custom });
     } catch (err) {
         setProgress(0, `⚠ ${err.message || 'The GIF could not be made.'}`);
     } finally {

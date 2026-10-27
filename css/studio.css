@@ -40,6 +40,18 @@ h3 { margin: 0; font-size: 18px; }
 .grid.two { grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); }
 .stack { display: flex; flex-direction: column; gap: 16px; }
 
+/* ---- Showcase ---- */
+.showcase { margin: 0 0 28px; display: flex; flex-direction: column; gap: 12px; }
+.show-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); }
+.loop-grid { display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); }
+.show { position: relative; display: block; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: #000; text-decoration: none; transition: border-color .15s, transform .15s; }
+.loop-grid .show { aspect-ratio: 1; }
+.show:hover { border-color: var(--line-2); transform: translateY(-2px); }
+.show video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.show span { position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 12px 10px; font-size: 12.5px; line-height: 1.4; color: #dfe3ee; background: linear-gradient(transparent, rgba(0,0,0,0.8)); }
+.show b { color: #fff; margin-right: 6px; }
+.showcase .hint { margin: 0; }
+
 /* ---- Composer ---- */
 .composer { display: flex; flex-direction: column; gap: 16px; box-shadow: 0 30px 80px rgba(0,0,0,0.35); }
 textarea, input[type=text], select {
@@ -159,6 +171,16 @@ a.vis p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
 .gear.two { width: 70px; height: 70px; margin: -35px 0 0 -35px; border-color: rgba(0,240,255,0.85); box-shadow: 0 0 18px rgba(0,240,255,0.45); animation-direction: reverse; animation-duration: 4s; }
 @keyframes zoom { 0% { transform: rotate(45deg) scale(0.1); opacity: 0; } 15% { opacity: 1; } 100% { transform: rotate(135deg) scale(1.6); opacity: 0; } }
 
+/* ---- Free and Pro ---- */
+.pro { margin-top: 56px; }
+.pro h2 { font-size: 22px; margin-bottom: 8px; }
+.tier { display: flex; flex-direction: column; gap: 10px; }
+.tier .price { margin: 0; font-size: 28px; font-weight: 800; }
+.tier ul { margin: 0; padding-left: 18px; color: var(--muted); line-height: 1.7; font-size: 14px; flex: 1; }
+.pro-tier { border-color: rgba(167,139,250,0.45); box-shadow: 0 0 40px rgba(167,139,250,0.12); }
+.pro-tier .primary.off { filter: grayscale(0.7) brightness(0.7); pointer-events: none; }
+.tier .hint { margin: 0; }
+
 footer { margin-top: 48px; color: var(--faint); font-size: 12px; line-height: 1.6; }
 footer p { margin: 4px 0; }
 
@@ -167,5 +189,9 @@ footer p { margin: 4px 0; }
     .yt-row .label { grid-column: 1 / -1; }
     .refine-row { flex-direction: column; }
     .top nav { gap: 12px; }
+    /* The showcase scrolls sideways on phones, so the Studio stays near the top. */
+    .show-grid, .loop-grid { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
+    .show-grid .show { flex: 0 0 82%; scroll-snap-align: start; }
+    .loop-grid .show { flex: 0 0 44%; scroll-snap-align: start; }
 }
 @media (prefers-reduced-motion: reduce) { .ring, .bar, .tunnel, .gear, .thinking i { animation: none; } .tunnel { opacity: 1; transform: rotate(45deg) scale(0.6); } }

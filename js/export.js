@@ -206,6 +206,8 @@
 
         try {
             ui.set(0, 'Checking what this browser can encode…');
+            const page0 = page.replace(/\.html.*$/, '');
+            if (window.track) window.track('Export started', { page: page0, aspect });
             if (onMobile()) {
                 throw new Error('Rendering a full video needs Chrome or Edge on a computer. Phones and tablets run out of memory part-way through, which reloads the page and loses the render.');
             }
@@ -307,6 +309,7 @@
                 await fileStream.close();
                 fileStream = null;
                 keepOpen = true;
+                if (window.track) window.track('Export finished', { page: page0, aspect, minutes: Math.round(frames / FPS / 60) });
                 ui.done({ title: 'Video saved', detail: `${save.name} — the full MP4 is on your computer.` });
                 return { savedTo: save.name };
             }
@@ -316,6 +319,7 @@
             keepOpen = true;
             // No auto-download: browsers block one started this long after the click, and then the file looks lost.
             // The panel keeps a real button, clicked by the user, so saving always works.
+            if (window.track) window.track('Export finished', { page: page0, aspect, minutes: Math.round(frames / FPS / 60) });
             ui.done({
                 title: 'Video complete',
                 detail: `${formatBytes(blob.size)} · ${formatDuration(duration || frames / FPS)} · ready to download.`,
