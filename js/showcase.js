@@ -16,6 +16,10 @@
         videos.forEach(v => seen.observe(v));
     }
 
+    // The demo video: counted once per visit when it starts playing.
+    const demo = document.getElementById('demo-video');
+    if (demo) demo.addEventListener('play', () => window.track && window.track('Demo played'), { once: true });
+
     const site = window.SITE || {};
     const buy = document.getElementById('pro-buy');
     document.getElementById('pro-price').textContent = site.proPrice || '';

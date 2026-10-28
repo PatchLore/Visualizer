@@ -36,6 +36,10 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
 
 ## Home page, Pro and analytics
 
+- **Demo video**: `examples/demo.mp4` (720p, 36 s, with sound) plays from the top of the home page. It was rendered
+  from the app itself (title and end cards, the Studio with a real result, Spectrum, AetherFlux and KINETIX on one
+  stretch of a track, and LOOP//FORGE), with the track's audio added in ffmpeg. The 1080p master for sharing is kept
+  locally in `promo/`, which is neither committed nor deployed.
 - **Showcase**: the home page opens with real exports in `examples/` (muted MP4s with poster frames, played only
   while on screen, never for people who prefer reduced motion). They were rendered from this app's own export hooks.
 - **Free and Pro**: the visualisers and GIF presets are free; Pro is the Song Studio and AI loops, which already need
