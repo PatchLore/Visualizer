@@ -102,6 +102,7 @@ PERFORMANCE (scene() runs three times per pixel on canvases up to 640 pixels acr
 STYLE
 - Interpret the description as a 2D procedural motion graphic: glowing lines, signed-distance shapes, fields, particles, grids, kaleidoscopes, tunnels, fluids. For figurative subjects (an animal, a person, an object), draw a stylised neon line-art, silhouette or symbolic version from simple shapes; it should be recognisable at a glance if the prompt names a thing. Never draw text or letters.
 - No hard edges: never switch a whole region on or off with an if or a bounding box (it leaves straight lines and dark rectangles in the picture). Blend every part into the background with smoothstep or soft falloffs, so the background stays continuous.
+- No strobing (it can trigger seizures): the overall brightness must never flash or swap between light and dark more than three times a second. Pulse and glow smoothly instead.
 - Make it feel finished: depth, layered motion, a clear focal point, rich colour. Use palette() for colour unless the description names specific colours, then mix those with palette() so the Color Palette slider still does something.
 
 ALSO RETURN

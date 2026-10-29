@@ -970,6 +970,7 @@
             if (d) { state.reveal = Math.round((d - state.clipStart) * 10) / 10; syncClipUI(); dirty = true; }
         });
         $('selFinish').addEventListener('change', e => { state.finish = e.target.value; dirty = true; });
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) { state.postFx = false; $('chkPostFx').checked = false; }
         $('chkPostFx').addEventListener('change', e => { state.postFx = e.target.checked; dirty = true; });
         $('chkText').addEventListener('change', e => { state.showText = e.target.checked; dirty = true; });
         $('txtArtist').addEventListener('input', e => { state.artist = e.target.value; painter.p.artist = state.artist; });

@@ -119,6 +119,15 @@
         .empty { color: var(--muted); font-size: 10px; padding: 4px 2px; }
 
         #hud-toggle { display: none; }
+        #flash-notice { box-sizing: border-box; width: min(420px, calc(100vw - 32px)); margin: auto; padding: 22px; color: #e8ecf4;
+            background: #0d0f15; border: 1px solid var(--border); border-radius: 14px; font: 13px/1.55 inherit; }
+        #flash-notice::backdrop { background: rgba(0, 0, 0, 0.7); }
+        #flash-notice h2 { margin: 0 0 8px; font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; }
+        #flash-notice p { margin: 0 0 18px; color: #b4bccb; }
+        #flash-notice .row { display: flex; gap: 10px; }
+        #flash-notice button { flex: 1; min-height: 40px; }
+        #flash-notice .go { background: var(--accent); color: #000; border-color: var(--accent); }
+        button.fx-pad:disabled { opacity: 0.35; cursor: not-allowed; }
         @media (max-width: 900px) {
             .hud-top, .hud-bottom { flex-direction: column; align-items: stretch; }
             .controls-stack, .panel { width: auto !important; max-width: none; }
@@ -139,6 +148,14 @@
 <canvas id="stage"></canvas>
 <input type="file" id="audio-file" accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.ogg,.opus,.aif,.aiff" hidden>
 
+<dialog id="flash-notice" aria-labelledby="flash-notice-title">
+    <h2 id="flash-notice-title">Flashing lights</h2>
+    <p>KINETIX uses strobes, flashes and fast-moving patterns. If flashing lights affect you, or anyone who will watch your video, turn on Reduce flashing. You can change it any time under Video.</p>
+    <div class="row">
+        <button type="button" class="calm">Reduce flashing</button>
+        <button type="button" class="go">Continue</button>
+    </div>
+</dialog>
 <div id="hud">
     <button id="hud-toggle" type="button" aria-expanded="true" aria-controls="hud">Hide controls ▾</button>
     <div class="hud-top">
@@ -193,6 +210,7 @@
                 <div class="ctrl-row"><label for="title">Title</label><input id="title" type="text" placeholder="Track title"></div>
                 <label class="check"><input id="show-text" type="checkbox" checked> Show artist and title</label>
                 <label class="check"><input id="auto-fx" type="checkbox" checked> Auto FX (the director's effects; without a plan, flashes on drops and glitches on hard hits)</label>
+                <label class="check"><input id="calm-fx" type="checkbox"> Reduce flashing: no strobe, flashes or inverts, in the preview and the export</label>
             </div>
 
             <div class="section-label divider"><span>Lyrics</span></div>
@@ -293,7 +311,7 @@ const glCanvas = document.createElement('canvas');   // the shaders draw here; e
 const gl = glCanvas.getContext('webgl', { antialias: false });
 const params = {
     mode: 0, speed: 1.0, zoom: 1.0, sym: 6, hue: 0.0, react: 1.0, color: '#00f0ff', lock: 0.0,
-    center: { x: 0.5, y: 0.5 }, showText: true, autoFx: true,
+    center: { x: 0.5, y: 0.5 }, showText: true, autoFx: true, calm: false,
 };
 const held = { strobe: false, glitch: false, invert: false, hyper: false, pixel: false };   // pads and keys, live only
 let autoFx = { glitch: 0, hyper: 0, flash: 0 };                                          // reactive FX without a plan
@@ -340,12 +358,18 @@ function applyTimeline(t) {
     } else fadeWeight = 0;
 }
 
+// Photosensitivity: at most three flashes a second. A planned flash or invert that starts less than a third of a second
+// after another is skipped; Reduce flashing (params.calm) turns the strobe, flashes and inverts off altogether.
+const FLASH_GAP = 1 / 3;
+const flashy = e => e.fx === 'flash' || e.fx === 'invert';
+const tooSoon = e => flashy(e) && events.some(o => flashy(o) && o.at < e.at && e.at - o.at < FLASH_GAP);
+
 // Effect strengths (0-1) at time t: planned events, the glitch on cuts, reactive auto FX (no plan) and held pads.
 function fxLevels(t) {
     const v = { glitch: 0, pixel: 0, invert: 0, hyper: 0, flash: 0, strobe: held.strobe ? 1 : 0 };
     if (t !== null && params.autoFx) {
         for (const e of events) {
-            if (t < e.at || t >= e.at + e.dur) continue;
+            if (t < e.at || t >= e.at + e.dur || tooSoon(e)) continue;
             const x = e.fx === 'flash' ? Math.exp(-(t - e.at) / 0.12) : e.from + (e.to - e.from) * (t - e.at) / e.dur;
             v[e.fx] = Math.max(v[e.fx], x);
         }
@@ -363,6 +387,7 @@ function fxLevels(t) {
     if (held.invert) v.invert = 1;
     if (held.hyper) v.hyper = 1;
     if (held.pixel) v.pixel = Math.max(v.pixel, 0.6);
+    if (params.calm) v.strobe = v.flash = v.invert = 0;
     return v;
 }
 
@@ -541,10 +566,10 @@ const fragmentShaderSrc = `
         // A little extra sparkle from the highs
         col *= 1.0 + u_high * 0.2;
 
-        // Held strobe: 7.5 Hz, which lands on whole frames at 30 and 60 fps
+        // Held strobe: 3 Hz, the most flashes a second the photosensitivity guidelines allow (whole frames at 30 and 60 fps)
         if (u_strobe > 0.5) {
-            float st = step(0.5, fract(u_clock * 7.5));
-            col = mix(col, vec3(1.0), st * 0.85);
+            float st = step(0.5, fract(u_clock * 3.0));
+            col = mix(col, vec3(1.0), st * 0.7);
         }
         // Single flash (decays, never flickers)
         col = mix(col, vec3(1.0), clamp(u_flash, 0.0, 1.0) * 0.8);
@@ -894,7 +919,7 @@ window.__setupExport = async function () {
     const { settings: s, audioUrl } = window.__localExport;
     exportFps = s.fps;
     const p = s.params || {};
-    for (const key of ['mode', 'speed', 'zoom', 'sym', 'hue', 'react', 'color', 'lock', 'showText', 'autoFx']) if (p[key] !== undefined) params[key] = p[key];
+    for (const key of ['mode', 'speed', 'zoom', 'sym', 'hue', 'react', 'color', 'lock', 'showText', 'autoFx', 'calm']) if (p[key] !== undefined) params[key] = p[key];
     if (p.center) params.center = { x: p.center.x, y: p.center.y };
     document.getElementById('artist').value = s.artist || '';
     document.getElementById('title').value = s.title || '';
@@ -1214,7 +1239,7 @@ async function exportMp4() {
                 artist, title,
                 params: {
                     mode: params.mode, speed: params.speed, zoom: params.zoom, sym: params.sym, hue: params.hue, react: params.react,
-                    color: document.getElementById('colorCtrl').value, lock: params.lock, center: params.center, showText: params.showText, autoFx: params.autoFx,
+                    color: document.getElementById('colorCtrl').value, lock: params.lock, center: params.center, showText: params.showText, autoFx: params.autoFx, calm: params.calm,
                 },
                 scenes: scenes.map(({ at, mode, color, fade }) => ({ at, mode, color, fade })),
                 events: events.map(({ at, dur, fx, from, to }) => ({ at, dur, fx, from, to })),
@@ -1277,6 +1302,39 @@ function bindSlider(id, valId, key, decimals = 2) {
 }
 
 const typing = () => ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName) && document.activeElement.type !== 'range' && document.activeElement.type !== 'checkbox';
+// Reduce flashing: on by default when the system asks for reduced motion; remembered once changed.
+// A one-time warning on the first visit offers it.
+function setupFlashSafety() {
+    let stored = null;
+    try { stored = localStorage.getItem('kinetix.calm'); } catch {}
+    const box = document.getElementById('calm-fx');
+    const set = on => {
+        params.calm = on;
+        box.checked = on;
+        for (const name of ['strobe', 'invert']) {
+            padEls[name].disabled = on;
+            padEls[name].title = on ? 'Off while Reduce flashing is on' : '';
+        }
+    };
+    const save = on => { set(on); try { localStorage.setItem('kinetix.calm', on ? '1' : '0'); } catch {} };
+    set(stored === null ? matchMedia('(prefers-reduced-motion: reduce)').matches : stored === '1');
+    box.onchange = () => save(box.checked);
+
+    let seen = false;
+    try { seen = localStorage.getItem('kinetix.flashNotice') === '1'; } catch {}
+    const notice = document.getElementById('flash-notice');
+    if (seen || EXPORT_JOB || !notice.showModal) return;
+    const done = calm => {
+        if (calm) save(true);
+        try { localStorage.setItem('kinetix.flashNotice', '1'); } catch {}
+        notice.close();
+    };
+    notice.querySelector('.calm').onclick = () => done(true);
+    notice.querySelector('.go').onclick = () => done(false);
+    notice.addEventListener('cancel', e => { e.preventDefault(); done(false); });
+    notice.showModal();
+}
+
 const FX_KEYS = { g: 'glitch', i: 'invert', b: 'hyper', x: 'pixel' };
 
 function bindControls() {
@@ -1314,6 +1372,7 @@ function bindControls() {
     document.getElementById('micBtn').onclick = e => toggleMic(e.currentTarget);
     document.getElementById('show-text').onchange = e => { params.showText = e.target.checked; };
     document.getElementById('auto-fx').onchange = e => { params.autoFx = e.target.checked; if (!params.autoFx) autoFx = { glitch: 0, hyper: 0, flash: 0 }; };
+    setupFlashSafety();
     document.getElementById('export').onclick = exportMp4;
     document.querySelectorAll('.rec-btn').forEach(btn => { btn.onclick = () => recordLoop(btn); });
 

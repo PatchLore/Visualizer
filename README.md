@@ -23,6 +23,11 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
     and ½/2× fixes a tempo detected an octave off. The plan is plain data, so the preview and the MP4 match. It
     also works as a live VJ tool: mic input, tap tempo and a built-in kick, hold-to-play FX pads and keys,
     fullscreen, and short WebM loop recordings.
+    **Flashing:** the held strobe runs at 3 Hz, the photosensitivity limit, and a planned flash or invert less than a
+    third of a second after another is skipped, so videos never flash more than three times a second. **Reduce
+    flashing** (under Video) turns the strobe, flashes and inverts off in the preview and the export. It starts on
+    when the system asks for reduced motion, and a warning on the first visit offers it. With reduced motion,
+    AetherFlux also starts without bass shake and ChromaFlow without RGB split and kick zoom.
 - **LOOP//FORGE** (`loopforge.html`): seamless looping GIFs from six VFX shaders (no track needed), for Discord,
   socials and stream overlays. Every motion completes whole turns, palette cycles or grid cells over the loop, so
   the last frame flows into the first. Encoded in the browser with [gifenc](https://github.com/mattdesl/gifenc)

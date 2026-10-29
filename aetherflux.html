@@ -1613,6 +1613,10 @@
                 }
             });
 
+            if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                params.cameraShake = false;
+                document.getElementById('toggle-shake').checked = false;
+            }
             document.getElementById('toggle-shake').addEventListener('change', e => {
                 params.cameraShake = e.target.checked;
             });
