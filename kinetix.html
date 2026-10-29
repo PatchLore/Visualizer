@@ -9,6 +9,7 @@
     <script src="js/analytics.js"></script>
     <script src="js/export.js"></script>
     <script src="js/director.js"></script>
+    <script src="js/lyrics.js"></script>
     <style>
         :root {
             --bg: #08090d; --panel: rgba(14, 16, 24, 0.86); --border: rgba(255, 255, 255, 0.12);
@@ -163,6 +164,9 @@
                 <label class="check"><input id="auto-fx" type="checkbox" checked> Auto FX (the director's effects; without a plan, flashes on drops and glitches on hard hits)</label>
             </div>
 
+            <div class="section-label divider"><span>Lyrics</span></div>
+            <div id="lyrics-panel"></div>
+
             <div class="section-label divider"><span>Export</span></div>
             <div class="fx-row">
                 <select id="aspect">
@@ -273,6 +277,7 @@ let bpm = 128, synthOn = false;
 let scenes = [], events = [], activeScene = -1;
 let fadeFrom = 0, fadeWeight = 0;   // the outgoing shader and how much of it still shows
 let direction = null, dirSeed = 1, dirPalette = null;   // the director's analysis of the current track
+let lyrics = null, lyricTime = 0, lyricsPanel = null;   // synced lines (js/lyrics.js) and the time they're drawn at
 
 function mixHex(a, b, t) {
     const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
@@ -643,6 +648,7 @@ function drawFrame(r, fx) {
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     ctx.drawImage(glCanvas, 0, 0);   // same task as the draw, so the WebGL buffer is still there
     if (params.showText) drawText(r);
+    if (lyrics) LyricSync.draw(ctx, W, H, lyricTime, lyrics, { font: "'JetBrains Mono', monospace", y: H > W ? 0.66 : 0.7 });
 }
 
 // Artist and title, bottom left, with an accent bar that kicks with the bass.
@@ -698,6 +704,7 @@ function loadAudio(file) {
     setStatus('');
     if (!document.getElementById('title').value) document.getElementById('title').value = file.name.replace(/\.[^/.]+$/, '');
     activeScene = -1;
+    if (lyricsPanel) lyricsPanel.trackChanged();
     audioEl.play().then(() => { isPlaying = true; updatePlay(); }).catch(() => setStatus('Track loaded. Press ▶ Play to start.'));
     // A new track gets a plan straight away, unless scenes were already placed by hand.
     if (!scenes.length && !events.length) autoDirect(false);
@@ -813,6 +820,7 @@ function animate(now) {
     updateReactiveFx(dt, r);
     const fx = fxLevels(t);
     advance(dt, r, fx);
+    lyricTime = t ?? 0;
     drawFrame(r, fx);
     drawSpectrum(listening, envelope);
     drawTimeline(t);
@@ -859,6 +867,7 @@ window.__setupExport = async function () {
     document.getElementById('title').value = s.title || '';
     scenes = (s.scenes || []).map(({ at, mode, color, fade }) => ({ at, mode, color, fade: fade || 0 }));
     events = (s.events || []).map(({ at, dur, fx, from, to }) => ({ at, dur, fx, from, to }));
+    lyrics = s.lyrics && s.lyrics.length ? s.lyrics : null;
     activeScene = -1;
     await document.fonts.load(`800 40px 'JetBrains Mono'`);
     await document.fonts.load(`400 40px 'JetBrains Mono'`);
@@ -875,6 +884,7 @@ window.__renderExportFrame = function (i) {
     updateReactiveFx(dt, r);
     const fx = fxLevels(t);
     advance(dt, r, fx);
+    lyricTime = t;
     drawFrame(r, fx);
     return stage;
 };
@@ -1168,6 +1178,7 @@ async function exportMp4() {
                 },
                 scenes: scenes.map(({ at, mode, color, fade }) => ({ at, mode, color, fade })),
                 events: events.map(({ at, dur, fx, from, to }) => ({ at, dur, fx, from, to })),
+                lyrics: lyricsPanel && lyricsPanel.lines() ? lyricsPanel.lines() : [],
             },
         });
         if (result.savedTo) setStatus(`✓ Saved ${result.savedTo}`);
@@ -1336,6 +1347,15 @@ if (EXPORT_JOB) {
     window.__visReady = true;
 } else {
     const { setLock } = bindControls();
+    let handoffLyrics = '';
+    if (new URLSearchParams(location.search).has('from')) { try { handoffLyrics = (JSON.parse(localStorage.getItem('studio.handoff') || 'null') || {}).lyrics || ''; } catch {} }
+    lyricsPanel = LyricSync.mount(document.getElementById('lyrics-panel'), {
+        getFile: () => currentFile,
+        getTime: () => (audioEl ? audioEl.currentTime : 0),
+        seek: t => seekTo(t),
+        onChange: l => { lyrics = l; },
+        initialText: handoffLyrics,
+    });
     applyStudioHandoff(setLock);
     renderLists();
     updateDirInfo();

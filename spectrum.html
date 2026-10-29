@@ -8,6 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
     <script src="js/analytics.js"></script>
     <script src="js/export.js"></script>
+    <script src="js/lyrics.js"></script>
     <style>
         :root { --accent: #ff2d55; }
         body { margin: 0; overflow: hidden; background: #05060a; color: #eef0f6; font-family: 'Montserrat', 'Segoe UI', sans-serif; }
@@ -83,6 +84,9 @@
     <div class="hint">Change the background and colour during the song: pick a background and colour, move to the moment, then add a scene. Each one fades in over 1.2 s.</div>
     <button id="add-scene">＋ Add scene at playhead</button>
     <div id="scene-list"></div>
+
+    <div class="section">Lyrics</div>
+    <div id="lyrics-panel"></div>
 
     <div class="section">Export</div>
     <label>Size
@@ -419,8 +423,8 @@ function drawFrame(dt, t, heights, level) {
         ctx.fillStyle = 'rgba(255,255,255,0.85)';
         ctx.fillText(title, tx, by + block * 0.58, maxW);
         ctx.restore();
-        drawLyrics(t);
     }
+    drawLyrics(t);
 }
 
 // ---- Live playback ----
@@ -450,6 +454,7 @@ function loadAudio(file) {
     setStatus('');
     document.getElementById('title').value = file.name.replace(/\.[^/.]+$/, '');
     activeScene = -1;
+    if (lyricsPanel) lyricsPanel.trackChanged();
     audioEl.play().then(() => { isPlaying = true; updatePlay(); }).catch(() => setStatus('Track loaded. Tap ▶ Play to start.'));
 }
 
@@ -601,6 +606,7 @@ async function exportMp4() {
                           particleCount: params.particleCount, showText: params.showText, textPos: params.textPos },
                 bg: bgSrc, logo: logoSrc,
                 scenes: scenes.map(({ at, color, src }) => ({ at, color, bg: src })),
+                lyrics: lyricsPanel && lyricsPanel.lines() ? lyricsPanel.lines() : [],
             },
         });
         if (result.savedTo) setStatus(`✓ Saved ${result.savedTo}`);
@@ -689,7 +695,23 @@ function bindControls() {
     window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'h' && !['INPUT', 'SELECT'].includes(document.activeElement.tagName)) document.body.classList.toggle('ui-hidden'); });
 }
 
-// Arriving from the Song Studio ("Make the video"): its title, artist and accent colour.
+// Lyrics: synced to the vocal (js/lyrics.js), drawn by drawLyrics and passed to the export.
+let lyricsPanel = null;
+function mountLyrics(initialText) {
+    lyricsPanel = LyricSync.mount(document.getElementById('lyrics-panel'), {
+        getFile: () => currentFile,
+        getTime: () => (audioEl ? audioEl.currentTime : 0),
+        seek: t => { if (audioEl && audioEl.src) { audioEl.currentTime = t; activeScene = -1; } },
+        onChange: l => { lyrics = l || []; },
+        initialText,
+    });
+}
+
+// Arriving from the Song Studio ("Make the video"): its title, artist, accent colour and lyrics.
+function studioHandoff() {
+    if (!new URLSearchParams(location.search).has('from')) return null;
+    try { return JSON.parse(localStorage.getItem('studio.handoff') || 'null'); } catch { return null; }
+}
 function applyStudioHandoff() {
     if (!new URLSearchParams(location.search).has('from')) return;
     let h = null;
@@ -712,6 +734,7 @@ if (EXPORT_JOB) {
 } else {
     initParticles();
     bindControls();
+    mountLyrics((studioHandoff() || {}).lyrics || '');
     applyStudioHandoff();
     requestAnimationFrame(animate);
 }

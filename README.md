@@ -41,6 +41,21 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
   track's analysis and drawn with a seeded random generator, so the preview and the MP4 are identical. Exports 9:16,
   1:1 or 16:9 clips of 15-60 s (or the whole track) with the clip's audio; without a track, a silent time-lapse.
 
+## Lyric sync
+
+Spectrum and KINETIX have a Lyrics panel: paste the lyrics (the Studio's lyrics come across with "Make the video"),
+press **Sync to the vocal**, check the lines and nudge any that are off. Synced lyrics are drawn word by word in the
+preview and the MP4, and saved in the browser per track, so a reload doesn't cost another sync.
+
+`js/lyrics.js` makes a small mono copy of the track in the browser (AAC or Opus in MP4, about 1.2 MB for a 4.7-minute
+song, under Vercel's 4.5 MB request limit) and `/api/lyrics` (`api/_lib/lyrics.js`) asks Groq's Whisper large-v3 for
+word timestamps with the lyrics as a hint. The page then matches Whisper's words to the real lyrics, spreads missed
+words between their neighbours, and moves each word's start to where the voice comes in (vocal-band energy). The
+same method as the RemotionVideo project's `tools/sync-lyrics.mjs`.
+
+Needs `GROQ_API_KEY` (in `.env` locally, in Vercel for the live site); it uses the Studio's access code, and with
+a `QUOTA` KV binding, `LYRICS_DAILY_LIMIT` syncs per visitor per day (default 10).
+
 ## Home page, Pro and analytics
 
 - **Demo video**: `examples/demo.mp4` (720p, 36 s, with sound) plays from the top of the home page. It was rendered
@@ -79,13 +94,14 @@ files directly won't export.
 
 ### Vercel (current)
 
-The repo deploys to Vercel as a static site plus two functions: `api/compose.js` (the Song Studio) and
-`api/shader.js` (LOOP//FORGE's loop writer), which wrap the engines in `api/_lib/` (`vercel.json` gives each up to
+The repo deploys to Vercel as a static site plus three functions: `api/compose.js` (the Song Studio),
+`api/shader.js` (LOOP//FORGE's loop writer) and `api/lyrics.js` (lyric sync), which wrap the engines in `api/_lib/` (`vercel.json` gives each up to
 60 seconds). Vercel never serves `api/` as static files, so the prompts stay private. No build step.
 
 In the Vercel project, under Settings → Environment Variables, add:
 
 - `ANTHROPIC_API_KEY` (required)
+- `GROQ_API_KEY` (for lyric sync)
 - `STUDIO_ACCESS_CODE` (recommended until payments exist): the Studio asks for this code once per browser, so
   strangers who find the URL can't spend your key
 - `AI_MODEL` / `AI_EFFORT` if you change them

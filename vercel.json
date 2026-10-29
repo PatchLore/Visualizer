@@ -6,6 +6,9 @@
     },
     "api/shader.js": {
       "maxDuration": 60
+    },
+    "api/lyrics.js": {
+      "maxDuration": 60
     }
   }
 }

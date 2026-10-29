@@ -267,7 +267,7 @@
         window.track && window.track('Make the video', { visualizer: current.result.visual.visualizer });
         const r = current.result;
         store.set('studio.handoff', {
-            title: chosenTitle(), artist: current.input.artist || '', accent: r.visual.accent, palette: r.visual.palette,
+            title: chosenTitle(), artist: current.input.artist || '', accent: r.visual.accent, palette: r.visual.palette, lyrics: r.lyrics,
             visualizer: r.visual.visualizer, at: Date.now(),
         });
     }
