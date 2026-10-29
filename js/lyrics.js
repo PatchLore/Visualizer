@@ -25,7 +25,8 @@
 
     // A compact upload: mono, 48 kHz, 32 kbps, in an MP4 container (Whisper resamples to 16 kHz anyway).
     async function compact(mono, rate) {
-        if (!('AudioEncoder' in window) || !window.Mp4Muxer) throw new Error('Lyric sync needs Chrome or Edge.');
+        if (!('AudioEncoder' in window) || !window.BrowserExport) throw new Error('Lyric sync needs Chrome or Edge.');
+        const Mp4Muxer = await BrowserExport.loadMuxer();
         let chosen = null;
         for (const [codec, mux] of [['mp4a.40.2', 'aac'], ['opus', 'opus']]) {
             const config = { codec, sampleRate: rate, numberOfChannels: 1, bitrate: 32000 };
@@ -273,7 +274,7 @@
         addStyles();
         container.innerHTML = `
             <div class="lyr">
-                <textarea placeholder="Paste the lyrics. [Section] headers are fine."></textarea>
+                <textarea aria-label="Lyrics" placeholder="Paste the lyrics. [Section] headers are fine."></textarea>
                 <div class="lyr-row"><button type="button" class="lyr-sync">Sync to the vocal</button><button type="button" class="lyr-lrc" title="Use timed lyrics from an .lrc file">Import .lrc</button><input type="file" class="lyr-lrc-file" accept=".lrc,text/plain" hidden><label class="lyr-row"><input type="checkbox" class="lyr-show" checked> Show in the video</label></div>
                 <div class="lyr-status"></div>
                 <div class="lyr-list"></div>

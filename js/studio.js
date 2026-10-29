@@ -21,7 +21,10 @@
     // ---- Form state ----
     function segValue(name) { return document.querySelector(`.seg[data-name="${name}"] .on`)?.dataset.value; }
     function setSeg(name, value) {
-        document.querySelectorAll(`.seg[data-name="${name}"] button`).forEach(b => b.classList.toggle('on', b.dataset.value === value));
+        document.querySelectorAll(`.seg[data-name="${name}"] button`).forEach(b => {
+            b.classList.toggle('on', b.dataset.value === value);
+            b.setAttribute('aria-pressed', String(b.dataset.value === value));
+        });
         if (name === 'lyricsMode') $('mine-wrap').hidden = value !== 'mine';
     }
     function readForm() {
@@ -44,10 +47,16 @@
         $('language').value = input.language || 'English'; $('artist').value = input.artist || '';
     }
 
+    // What a screen reader hears: each new step, then the result. (The seconds counter on screen isn't read out.)
+    const announce = text => { $('announce').textContent = text; };
+
     // ---- API ----
+    let controller = null;
     async function compose(payload, label) {
         if (busy) return null;
         busy = true;
+        controller = new AbortController();
+        $('cancel').hidden = false;
         const btns = [$('generate'), document.querySelector('#refine-form button')];
         const labels = btns.map(b => b.innerHTML);
         btns.forEach(b => { b.disabled = true; });
@@ -58,9 +67,11 @@
             ? ['Reading your change…', 'Rewriting…', 'Keeping what works…', 'Checking Suno\'s limits…']
             : ['Reading your idea…', 'Finding the sound…', 'Writing the verses…', 'Building the chorus…', 'Planning the video scenes…', 'Writing the YouTube kit…', 'Checking Suno\'s limits…'];
         const started = Date.now();
+        let spoken = '';
         const tick = () => {
-            const secs = (Date.now() - started) / 1000;
-            $('progress').textContent = `${steps[Math.min(Math.floor(secs / 4.5), steps.length - 1)]} ${Math.round(secs)}s · usually about 30s`;
+            const secs = (Date.now() - started) / 1000, step = steps[Math.min(Math.floor(secs / 4.5), steps.length - 1)];
+            $('progress').textContent = `${step} ${Math.round(secs)}s · usually about 30s`;
+            if (step !== spoken) { spoken = step; announce(step); }
         };
         tick();
         const timer = setInterval(tick, 1000);
@@ -73,6 +84,7 @@
                     method: 'POST',
                     headers: { 'content-type': 'application/json', 'x-studio-code': code },
                     body: JSON.stringify(payload),
+                    signal: controller.signal,
                 }), 'The Song Studio'));
             } catch (err) {
                 if (err.pro) { document.getElementById('pro')?.scrollIntoView({ behavior: 'smooth' }); throw new Error('The Song Studio is part of Pro. See Free and Pro below.'); }
@@ -82,12 +94,15 @@
             if (!res.ok || data.error) throw new Error(data.error || `Request failed (${res.status}).`);
             return data;
         } catch (err) {
+            if (err.name === 'AbortError') { announce('Cancelled.'); return null; }
             $('error').textContent = err.message === 'Failed to fetch' ? 'Could not reach the server. Check your connection and try again.' : err.message;
             $('error').hidden = false;
             return null;
         } finally {
             clearInterval(timer);
             $('progress').textContent = '';
+            $('cancel').hidden = true;
+            controller = null;
             busy = false;
             btns.forEach((b, i) => { b.disabled = false; b.innerHTML = labels[i]; });
         }
@@ -105,6 +120,7 @@
         current = { input, result: data.result, warnings: data.warnings || [], title: 0 };
         save(true);
         render();
+        announce(`Your song is ready: ${chosenTitle()}.`);
         $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
@@ -117,6 +133,7 @@
         current = { ...current, result: data.result, warnings: data.warnings || [], title: 0 };
         save(true);
         render();
+        announce(`Rewritten: ${chosenTitle()}.`);
         $('refine-text').value = '';
     }
 
@@ -134,7 +151,18 @@
     function el(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
     const chosenTitle = () => current.result.titles[current.title] || current.result.titles[0] || 'Untitled';
 
+    // Step 1 until there's a song; then step 2 (make it in Suno), with step 3 ahead.
+    function renderSteps() {
+        const at = current ? 2 : 1;
+        document.querySelectorAll('#steps li').forEach(li => {
+            const n = Number(li.dataset.step);
+            li.classList.toggle('done', n < at);
+            if (n === at) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+        });
+    }
+
     function render() {
+        renderSteps();
         if (!current) return;
         const r = current.result;
         $('results').hidden = false;
@@ -144,6 +172,7 @@
         r.titles.forEach((t, i) => {
             const b = el('button', i === current.title ? 'on' : '', t);
             b.type = 'button';
+            b.setAttribute('aria-pressed', String(i === current.title));
             b.onclick = () => { current.title = i; save(false); render(); };
             titles.appendChild(b);
         });
@@ -279,6 +308,13 @@
         b.onclick = () => refine(text === 'Different title ideas' ? 'Give three new, more striking title ideas; keep everything else.' : `Make it ${text.toLowerCase()}.`);
         $('refine-chips').appendChild(b);
     });
+    document.querySelectorAll('.seg').forEach(seg => {
+        seg.setAttribute('role', 'group');
+        const label = seg.previousElementSibling;
+        if (label && label.classList.contains('label')) seg.setAttribute('aria-label', label.textContent.trim());
+        setSeg(seg.dataset.name, segValue(seg.dataset.name));
+    });
+    $('cancel').addEventListener('click', () => controller && controller.abort());
     document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', e => {
         const b = e.target.closest('button'); if (!b) return;
         setSeg(seg.dataset.name, b.dataset.value);
@@ -300,6 +336,7 @@
         bars.appendChild(b);
     }
 
-    if (current) { fillForm(current.input); render(); }
+    if (current) fillForm(current.input);
+    render();
     renderHistory();
 })();

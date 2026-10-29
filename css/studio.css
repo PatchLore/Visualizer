@@ -206,3 +206,18 @@ footer p { margin: 4px 0; }
     .loop-grid .show { flex: 0 0 44%; scroll-snap-align: start; }
 }
 @media (prefers-reduced-motion: reduce) { .ring, .bar, .tunnel, .gear, .stroke, .thinking i { animation: none; } .tunnel { opacity: 1; transform: rotate(45deg) scale(0.6); } }
+
+/* Keyboard focus: a clear ring on every control (mouse clicks don't show it). */
+:is(button, a, select, summary, input[type=range], input[type=checkbox], input[type=color], [tabindex]):focus-visible { outline: 2px solid #fff !important; outline-offset: 2px; }
+
+/* The three steps above the composer: done ones get a tick, the current one is lit. */
+.steps { list-style: none; margin: 0 0 14px; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.steps li { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,0.02); color: var(--faint); font-size: 12px; line-height: 1.45; }
+.steps b { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line-2); font-size: 12px; color: var(--muted); }
+.steps strong { display: block; color: var(--muted); font-size: 13px; }
+.steps li[aria-current="step"] { border-color: rgba(167,139,250,0.5); background: rgba(167,139,250,0.08); }
+.steps li[aria-current="step"] b { background: var(--accent-2); border-color: transparent; color: #0b0614; }
+.steps li[aria-current="step"] strong { color: var(--text); }
+.steps li.done b { background: rgba(126,240,164,0.15); border-color: rgba(126,240,164,0.4); color: var(--ok); font-size: 0; }
+.steps li.done b::after { content: '✓'; font-size: 12px; }
+@media (max-width: 640px) { .steps { grid-template-columns: 1fr; gap: 6px; } .steps li { padding: 9px 12px; } }

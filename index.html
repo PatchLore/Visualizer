@@ -73,6 +73,12 @@
         <p class="hint">Real exports from these tools, shown without sound. Your own audio never leaves your computer.</p>
     </section>
 
+    <ol class="steps" id="steps" aria-label="From idea to video">
+        <li data-step="1"><b>1</b><span><strong>Describe the song</strong>Get the style prompt, lyrics and a video plan</span></li>
+        <li data-step="2"><b>2</b><span><strong>Make it in Suno</strong>Copy the style and lyrics into Suno</span></li>
+        <li data-step="3"><b>3</b><span><strong>Make the video</strong>Load your finished track into a visualiser</span></li>
+    </ol>
+
     <form id="compose" class="card composer" autocomplete="off">
         <label class="idea">
             <span class="sr">Song description</span>
@@ -145,13 +151,15 @@
 
         <div class="go">
             <button type="submit" id="generate" class="primary">Write my song prompt</button>
-            <span id="progress" class="hint" aria-live="polite"></span>
+            <button type="button" id="cancel" class="copy" hidden>Cancel</button>
+            <span id="progress" class="hint"></span>
+            <span id="announce" class="sr" role="status" aria-live="polite"></span>
             <span id="quota" class="hint"></span>
         </div>
         <div id="error" class="error" role="alert" hidden></div>
     </form>
 
-    <section id="results" hidden aria-live="polite">
+    <section id="results" hidden aria-label="Your song">
         <div class="titles-row">
             <span class="label">Title</span>
             <div id="titles" class="chips"></div>
@@ -159,12 +167,12 @@
 
         <div class="grid two">
             <article class="card out">
-                <header><h2>Style of Music</h2><span class="count" id="style-count"></span><button class="copy" data-copy="style">Copy</button></header>
+                <header><h2>Style of Music</h2><span class="count" id="style-count"></span><button class="copy" data-copy="style" aria-label="Copy the style of music">Copy</button></header>
                 <p id="style" class="mono box"></p>
             </article>
             <div class="stack">
                 <article class="card out">
-                    <header><h2>Exclude Styles</h2><button class="copy" data-copy="exclude">Copy</button></header>
+                    <header><h2>Exclude Styles</h2><button class="copy" data-copy="exclude" aria-label="Copy the excluded styles">Copy</button></header>
                     <p id="exclude" class="mono box small"></p>
                 </article>
                 <article class="card out">
@@ -176,7 +184,7 @@
         </div>
 
         <article class="card out">
-            <header><h2>Lyrics</h2><span class="count" id="lyrics-count"></span><button class="copy" data-copy="lyrics">Copy</button></header>
+            <header><h2>Lyrics</h2><span class="count" id="lyrics-count"></span><button class="copy" data-copy="lyrics" aria-label="Copy the lyrics">Copy</button></header>
             <pre id="lyrics" class="lyrics"></pre>
         </article>
 
@@ -184,7 +192,7 @@
             <span class="label">Change something</span>
             <div class="chips" id="refine-chips"></div>
             <form id="refine-form" class="refine-row">
-                <input id="refine-text" type="text" maxlength="500" placeholder="e.g. make the chorus catchier, set it in winter, add a sax solo">
+                <input id="refine-text" type="text" maxlength="500" aria-label="Describe a change" placeholder="e.g. make the chorus catchier, set it in winter, add a sax solo">
                 <button type="submit" class="primary small">Rewrite</button>
             </form>
         </div>
@@ -211,9 +219,9 @@
 
         <article class="card yt">
             <header><h2>YouTube kit</h2></header>
-            <div class="yt-row"><span class="label">Title</span><p id="yt-title"></p><button class="copy" data-copy="ytTitle">Copy</button></div>
-            <div class="yt-row"><span class="label">Description</span><p id="yt-description" class="pre"></p><button class="copy" data-copy="ytDescription">Copy</button></div>
-            <div class="yt-row"><span class="label">Tags</span><p id="yt-tags" class="mono small"></p><button class="copy" data-copy="ytTags">Copy</button></div>
+            <div class="yt-row"><span class="label">Title</span><p id="yt-title"></p><button class="copy" data-copy="ytTitle" aria-label="Copy the YouTube title">Copy</button></div>
+            <div class="yt-row"><span class="label">Description</span><p id="yt-description" class="pre"></p><button class="copy" data-copy="ytDescription" aria-label="Copy the YouTube description">Copy</button></div>
+            <div class="yt-row"><span class="label">Tags</span><p id="yt-tags" class="mono small"></p><button class="copy" data-copy="ytTags" aria-label="Copy the YouTube tags">Copy</button></div>
         </article>
     </section>
 

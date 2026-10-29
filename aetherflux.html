@@ -23,13 +23,14 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <meta name="theme-color" content="#05060a">
     <script src="vendor/three.r128.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
     <script src="js/analytics.js"></script>
     <script src="js/export.js"></script>
     <script src="js/director.js"></script>
     <script src="js/clips.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        /* Keyboard focus: a clear ring on every control (mouse clicks don't show it). */
+        :is(button, a, select, summary, input[type=range], input[type=checkbox], input[type=color], [tabindex]):focus-visible { outline: 2px solid #fff !important; outline-offset: 2px; }
         :root {
             --accent: #06b6d4;
             --accent-glow: rgba(6, 182, 212, 0.45);
@@ -258,7 +259,7 @@
             <!-- Track Progress Scrubber & Time Readout -->
             <div id="scrub-box" class="flex items-center gap-2 bg-slate-950/70 px-2.5 py-1 rounded-xl border border-white/10">
                 <span id="track-time-current" class="text-[10px] mono text-cyan-300">0:00</span>
-                <input id="track-scrubber" type="range" min="0" max="100" step="0.1" value="0" oninput="seekAudioTrack(this.value)" class="w-20 sm:w-28 accent-cyan-400">
+                <input id="track-scrubber" aria-label="Position in the track" type="range" min="0" max="100" step="0.1" value="0" oninput="seekAudioTrack(this.value)" class="w-20 sm:w-28 accent-cyan-400">
                 <span id="track-time-total" class="text-[10px] mono text-slate-400">SYNTH</span>
             </div>
 
@@ -331,8 +332,8 @@
         <div class="flex flex-col gap-2.5">
             <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mono">02 // Track & Backdrop</span>
             <div class="grid grid-cols-2 gap-1.5">
-                <input id="input-artist" type="text" value="AetherFlux Studio" oninput="updateMetaDisplay()" placeholder="Artist Name" class="bg-slate-950/70 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400">
-                <input id="input-title" type="text" value="Aetherial Pulse" oninput="updateMetaDisplay()" placeholder="Track Title" class="bg-slate-950/70 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400">
+                <input id="input-artist" aria-label="Artist name" type="text" value="AetherFlux Studio" oninput="updateMetaDisplay()" placeholder="Artist Name" class="bg-slate-950/70 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400">
+                <input id="input-title" aria-label="Track title" type="text" value="Aetherial Pulse" oninput="updateMetaDisplay()" placeholder="Track Title" class="bg-slate-950/70 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400">
             </div>
 
             <div class="flex gap-1.5">
@@ -369,14 +370,14 @@
                     <span class="text-slate-300">Centre Disc Opacity</span>
                     <span id="val-disc-opacity" class="mono text-cyan-400">92%</span>
                 </div>
-                <input id="param-disc-opacity" type="range" min="0" max="100" value="92">
+                <input id="param-disc-opacity" aria-label="Centre disc opacity" type="range" min="0" max="100" value="92">
             </div>
             <div>
                 <div class="flex justify-between text-[11px] mb-1">
                     <span class="text-slate-300">Centre Size</span>
                     <span id="val-center-scale" class="mono text-cyan-400">100%</span>
                 </div>
-                <input id="param-center-scale" type="range" min="60" max="130" value="100">
+                <input id="param-center-scale" aria-label="Centre size" type="range" min="60" max="130" value="100">
             </div>
             <label class="flex items-center justify-between text-[11px] text-slate-300 bg-white/[0.02] px-2.5 py-2 rounded-xl border border-white/5 cursor-pointer">
                 <span>Remove logo's black background</span>
@@ -388,7 +389,7 @@
                     <span class="text-slate-300">BG Image Opacity</span>
                     <span id="val-bg-opacity" class="mono text-cyan-400">45%</span>
                 </div>
-                <input id="param-bg-opacity" type="range" min="0" max="100" value="45">
+                <input id="param-bg-opacity" aria-label="Background image opacity" type="range" min="0" max="100" value="45">
             </div>
 
             <!-- Scene timeline: background, shape and colour change at set times, live and in exports -->
@@ -463,7 +464,7 @@
                     <span class="text-slate-300">Particle Density</span>
                     <span id="val-particles" class="mono text-cyan-400">55k</span>
                 </div>
-                <input id="param-particles" type="range" min="15000" max="90000" step="5000" value="55000">
+                <input id="param-particles" aria-label="Particle density" type="range" min="15000" max="90000" step="5000" value="55000">
             </div>
 
             <div>
@@ -471,7 +472,7 @@
                     <span class="text-slate-300">Audio Reactivity Gain</span>
                     <span id="val-reactivity" class="mono text-cyan-400">1.8x</span>
                 </div>
-                <input id="param-reactivity" type="range" min="0.5" max="3.5" step="0.1" value="1.8">
+                <input id="param-reactivity" aria-label="Audio reactivity gain" type="range" min="0.5" max="3.5" step="0.1" value="1.8">
             </div>
 
             <!-- Audio Spectrum Analyzer Controls -->

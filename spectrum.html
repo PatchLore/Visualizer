@@ -23,7 +23,6 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <meta name="theme-color" content="#05060a">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
     <script src="js/analytics.js"></script>
     <script src="js/export.js"></script>
     <script src="js/access.js"></script>
@@ -31,6 +30,8 @@
     <script src="js/director.js"></script>
     <script src="js/clips.js"></script>
     <style>
+        /* Keyboard focus: a clear ring on every control (mouse clicks don't show it). */
+        :is(button, a, select, summary, input[type=range], input[type=checkbox], input[type=color], [tabindex]):focus-visible { outline: 2px solid #fff !important; outline-offset: 2px; }
         :root { --accent: #ff2d55; }
         body { margin: 0; overflow: hidden; background: #05060a; color: #eef0f6; font-family: 'Montserrat', 'Segoe UI', sans-serif; }
         #stage { position: fixed; inset: 0; width: 100vw; height: 100vh; }
@@ -94,7 +95,7 @@
         <button id="play">▶ Play</button>
     </div>
     <div id="track-name" class="hint">No track loaded</div>
-    <div id="seek-row"><span id="time-now">0:00</span><input id="seek" type="range" min="0" max="1000" value="0" step="1"><span id="time-total">0:00</span></div>
+    <div id="seek-row"><span id="time-now">0:00</span><input id="seek" aria-label="Position in the track" type="range" min="0" max="1000" value="0" step="1"><span id="time-total">0:00</span></div>
     <label>Artist <input id="artist" type="text" value="Artist"></label>
     <label>Title <input id="title" type="text" value="Track title"></label>
     <div class="row">

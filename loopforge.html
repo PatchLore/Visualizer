@@ -23,11 +23,12 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <meta name="theme-color" content="#05060a">
     <script src="js/analytics.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
     <script src="js/export.js"></script>
     <script src="js/access.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
     <style>
+        /* Keyboard focus: a clear ring on every control (mouse clicks don't show it). */
+        :is(button, a, select, summary, input[type=range], input[type=checkbox], input[type=color], [tabindex]):focus-visible { outline: 2px solid #fff !important; outline-offset: 2px; }
         :root {
             --bg: #090a0f; --panel: #12151f; --border: rgba(255, 255, 255, 0.1);
             --accent: #00f0ff; --accent2: #ff0066; --text: #eef2f9; --muted: #848d9f;
@@ -119,10 +120,10 @@
 
     <div class="control-group">
         <div class="section-title">0. Describe a loop</div>
-        <textarea id="aiPrompt" rows="3" maxlength="600" placeholder="A neon jellyfish pulsing in a dark ocean"></textarea>
+        <textarea id="aiPrompt" aria-label="Describe a loop" rows="3" maxlength="600" placeholder="A neon jellyfish pulsing in a dark ocean"></textarea>
         <button class="ai-btn" id="aiGenerate">✦ Generate loop</button>
         <div class="row" id="aiChangeRow" hidden>
-            <input type="text" id="aiChange" maxlength="400" placeholder="Change it: slower, more red, add stars…">
+            <input type="text" id="aiChange" aria-label="Change the loop" maxlength="400" placeholder="Change it: slower, more red, add stars…">
             <button id="aiChangeBtn">Change</button>
         </div>
         <div id="aiStatus"></div>
@@ -143,17 +144,17 @@
 
     <div class="control-group">
         <div class="section-title">2. Look</div>
-        <div class="ctrl"><label>Complexity</label><input type="range" id="compCtrl" min="1" max="8" step="0.5" value="4.0"><span class="val" id="compVal">4.0</span></div>
-        <div class="ctrl"><label>Zoom Scale</label><input type="range" id="zoomCtrl" min="0.4" max="2.5" step="0.05" value="1.0"><span class="val" id="zoomVal">1.00</span></div>
-        <div class="ctrl"><label>Color Palette</label><input type="range" id="hueCtrl" min="0" max="1" step="0.01" value="0.0"><span class="val" id="hueVal">0.00</span></div>
-        <div class="ctrl"><label>Glow / Bloom</label><input type="range" id="glowCtrl" min="0.3" max="2.5" step="0.05" value="1.2"><span class="val" id="glowVal">1.20</span></div>
-        <div class="ctrl"><label>Chromatic Ab.</label><input type="range" id="chromaCtrl" min="0.0" max="1.0" step="0.02" value="0.25"><span class="val" id="chromaVal">0.25</span></div>
+        <div class="ctrl"><label for="compCtrl">Complexity</label><input type="range" id="compCtrl" min="1" max="8" step="0.5" value="4.0"><span class="val" id="compVal">4.0</span></div>
+        <div class="ctrl"><label for="zoomCtrl">Zoom Scale</label><input type="range" id="zoomCtrl" min="0.4" max="2.5" step="0.05" value="1.0"><span class="val" id="zoomVal">1.00</span></div>
+        <div class="ctrl"><label for="hueCtrl">Color Palette</label><input type="range" id="hueCtrl" min="0" max="1" step="0.01" value="0.0"><span class="val" id="hueVal">0.00</span></div>
+        <div class="ctrl"><label for="glowCtrl">Glow / Bloom</label><input type="range" id="glowCtrl" min="0.3" max="2.5" step="0.05" value="1.2"><span class="val" id="glowVal">1.20</span></div>
+        <div class="ctrl"><label for="chromaCtrl">Chromatic Ab.</label><input type="range" id="chromaCtrl" min="0.0" max="1.0" step="0.02" value="0.25"><span class="val" id="chromaVal">0.25</span></div>
     </div>
 
     <div class="control-group">
         <div class="section-title">3. GIF loop settings</div>
         <div class="ctrl">
-            <label>Dimensions</label>
+            <label for="sizeSelect">Dimensions</label>
             <select id="sizeSelect">
                 <option value="320x320">320 × 320 (small, Discord emoji)</option>
                 <option value="480x480" selected>480 × 480 (square)</option>
@@ -162,7 +163,7 @@
             </select>
         </div>
         <div class="ctrl">
-            <label>Loop length</label>
+            <label for="framesSelect">Loop length</label>
             <select id="framesSelect">
                 <option value="38">1.5 s · 38 frames</option>
                 <option value="50" selected>2 s · 50 frames</option>
@@ -192,7 +193,7 @@
     <div class="control-group">
         <div class="section-title">4. Video loop (MP4)</div>
         <div class="ctrl">
-            <label>Format</label>
+            <label for="videoSelect">Format</label>
             <select id="videoSelect">
                 <option value="portrait:8" selected>Spotify Canvas · 9:16 · 8 s</option>
                 <option value="portrait:15">Reels / TikTok · 9:16 · 15 s</option>

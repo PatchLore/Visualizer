@@ -4,7 +4,8 @@
 // code sees the same window size it would full screen. The iframe page analyses the track offline and draws each
 // frame on request (__setupExport / __renderExportFrame); every frame is encoded with WebCodecs (H.264, falling
 // back to VP9) and the original audio is re-encoded (AAC, falling back to Opus), then both are muxed into an MP4
-// with mp4-muxer. Nothing leaves the computer.
+// with mp4-muxer (loaded from jsDelivr on the first export, so pages that never export don't download it). Nothing
+// leaves the computer.
 //
 // Usage from a page:
 //   const save = await BrowserExport.pickSaveFile(name);         // call first, inside the click handler
@@ -24,6 +25,24 @@
         ch.port1.onmessage = () => resolve();
         ch.port2.postMessage(0);
     });
+
+    // mp4-muxer, fetched once, the first time something needs it (an export here, or lyric sync's upload in
+    // js/lyrics.js).
+    const MUXER_URL = 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js';
+    let muxerLoading = null;
+    function loadMuxer() {
+        if (window.Mp4Muxer) return Promise.resolve(window.Mp4Muxer);
+        if (!muxerLoading) {
+            muxerLoading = new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = MUXER_URL;
+                script.onload = () => (window.Mp4Muxer ? resolve(window.Mp4Muxer) : reject(new Error('The MP4 writer did not load.')));
+                script.onerror = () => { muxerLoading = null; script.remove(); reject(new Error('Could not load the MP4 writer. Check your connection and try again.')); };
+                document.head.appendChild(script);
+            });
+        }
+        return muxerLoading;
+    }
 
     function supported() {
         return 'VideoEncoder' in window && 'AudioEncoder' in window && 'VideoFrame' in window;
@@ -80,6 +99,9 @@
     // Progress overlay with a live preview of the frames being drawn.
     function makeOverlay(width, height) {
         const overlay = document.createElement('div');
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-label', 'Exporting video');
         overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;'
             + 'padding:16px;background:rgba(3,5,10,0.86);backdrop-filter:blur(6px);font-family:Montserrat,Inter,"Segoe UI",sans-serif;color:#eef0f6';
         const card = document.createElement('div');
@@ -91,7 +113,13 @@
         const iframe = document.createElement('iframe');
         iframe.style.cssText = `position:absolute;left:0;top:0;border:0;width:${width}px;height:${height}px;transform:scale(${scale});transform-origin:0 0;pointer-events:none`;
         frame.appendChild(iframe);
+        iframe.setAttribute('aria-hidden', 'true');
+        iframe.tabIndex = -1;
         const bar = document.createElement('div');
+        bar.setAttribute('role', 'progressbar');
+        bar.setAttribute('aria-label', 'Export progress');
+        bar.setAttribute('aria-valuemin', '0');
+        bar.setAttribute('aria-valuemax', '100');
         bar.style.cssText = 'height:6px;border-radius:3px;background:rgba(255,255,255,0.1);overflow:hidden';
         const fill = document.createElement('div');
         fill.style.cssText = 'height:100%;width:0;background:linear-gradient(90deg,#22d3ee,#a78bfa);transition:width .2s';
@@ -104,9 +132,18 @@
         const cancel = document.createElement('button');
         cancel.textContent = 'Cancel';
         cancel.style.cssText = 'align-self:flex-end;padding:7px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:#fff;font:inherit;font-size:12px;cursor:pointer';
-        card.append(frame, bar, text, hint, cancel);
+        // What a screen reader hears: each stage, then every 10% while rendering, then the result.
+        const live = document.createElement('div');
+        live.setAttribute('role', 'status');
+        live.setAttribute('aria-live', 'polite');
+        live.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)';
+        let spokenStage = '', spokenTenth = -1;
+        card.append(frame, bar, text, hint, cancel, live);
         overlay.appendChild(card);
         document.body.appendChild(overlay);
+        const returnFocus = document.activeElement;
+        cancel.focus();
+        const close = () => { overlay.remove(); if (returnFocus && returnFocus.focus) returnFocus.focus(); };
 
         function button(label, primary) {
             const b = document.createElement('button');
@@ -139,11 +176,23 @@
             row.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center';
             actions.forEach(a => row.appendChild(a));
             card.append(head, line, row);
+            live.textContent = `${title}. ${detail || ''}`;
+            overlay.setAttribute('aria-label', title);
+            actions[0].focus();
         }
 
         return {
             iframe, cancel,
-            set(progress, message) { fill.style.width = `${Math.round(progress * 100)}%`; text.textContent = message; },
+            set(progress, message) {
+                fill.style.width = `${Math.round(progress * 100)}%`;
+                bar.setAttribute('aria-valuenow', String(Math.round(progress * 100)));
+                text.textContent = message;
+                const stage = message.replace(/\d.*$/, ''), tenth = Math.floor(progress * 10);
+                if (stage !== spokenStage || tenth !== spokenTenth) {
+                    spokenStage = stage; spokenTenth = tenth;
+                    live.textContent = progress > 0 && progress < 1 ? `${message}, ${Math.round(progress * 100)}%` : message;
+                }
+            },
             done({ title, detail, url, fileName }) {
                 const actions = [];
                 if (url) {
@@ -154,17 +203,17 @@
                     a.style.cssText = 'padding:10px 18px;border-radius:10px;background:linear-gradient(90deg,#22d3ee,#a78bfa);color:#04101c;font-size:13px;font-weight:700;text-decoration:none';
                     actions.push(a);
                 }
-                const close = button(url ? 'Done' : 'Close', false);
-                close.onclick = () => overlay.remove();
-                actions.push(close);
+                const done = button(url ? 'Done' : 'Close', false);
+                done.onclick = close;
+                actions.push(done);
                 panel('✓', title || 'Video ready', detail, actions);
             },
             error(message) {
-                const close = button('Close', false);
-                close.onclick = () => overlay.remove();
-                panel('!', 'Export failed', message, [close]);
+                const shut = button('Close', false);
+                shut.onclick = close;
+                panel('!', 'Export failed', message, [shut]);
             },
-            remove() { overlay.remove(); },
+            remove: close,
         };
     }
 
@@ -199,6 +248,8 @@
         if (lastUrl) { URL.revokeObjectURL(lastUrl); lastUrl = null; }
         const [width, height] = SIZES[aspect] || SIZES.landscape;
         const ui = makeOverlay(width, height);
+        const muxerReady = loadMuxer();   // fetched while the track decodes
+        muxerReady.catch(() => {});
         let cancelled = false, keepOpen = false;
         ui.cancel.onclick = () => { cancelled = true; ui.set(0, 'Cancelling…'); };
         const audioUrl = audioFile ? URL.createObjectURL(audioFile) : null;
@@ -235,7 +286,7 @@
             const { frames, duration, start = 0, fade = false } = await win.__setupExport();
             check();
 
-            const { Muxer, StreamTarget, FileSystemWritableFileStreamTarget } = window.Mp4Muxer;
+            const { Muxer, StreamTarget, FileSystemWritableFileStreamTarget } = await muxerReady;
             let target, parts = null;
             if (save) {
                 fileStream = await save.createWritable();
@@ -400,5 +451,5 @@
         return `${base}${aspect === 'portrait' ? ' (9x16)' : aspect === 'square' ? ' (1x1)' : ''}.mp4`;
     }
 
-    window.BrowserExport = { supported, pickSaveFile, exportVideo, fileNameFor };
+    window.BrowserExport = { supported, pickSaveFile, exportVideo, fileNameFor, loadMuxer };
 })();

@@ -23,7 +23,6 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <meta name="theme-color" content="#05060a">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
     <script src="js/analytics.js"></script>
     <script src="js/export.js"></script>
     <script src="js/director.js"></script>
@@ -31,6 +30,8 @@
     <script src="js/lyrics.js"></script>
     <script src="js/clips.js"></script>
     <style>
+        /* Keyboard focus: a clear ring on every control (mouse clicks don't show it). */
+        :is(button, a, select, summary, input[type=range], input[type=checkbox], input[type=color], [tabindex]):focus-visible { outline: 2px solid #fff !important; outline-offset: 2px; }
         :root {
             --bg: #08090d; --panel: rgba(14, 16, 24, 0.86); --border: rgba(255, 255, 255, 0.12);
             --accent: #00f0ff; --accent2: #ff0055; --text: #e4e8f0; --muted: #7e8698;
@@ -188,7 +189,7 @@
                 <button id="play">▶ Play</button>
             </div>
             <div id="track-name" class="hint">No track loaded</div>
-            <div id="seek-row"><span id="time-now">0:00</span><input id="seek" type="range" min="0" max="1000" value="0" step="1"><span id="time-total">0:00</span></div>
+            <div id="seek-row"><span id="time-now">0:00</span><input id="seek" aria-label="Position in the track" type="range" min="0" max="1000" value="0" step="1"><span id="time-total">0:00</span></div>
         </div>
 
         <!-- Live audio, video text and export -->
@@ -219,7 +220,7 @@
             <div class="section-label divider"><span>Export</span></div>
             <div id="clip-panel" style="margin-bottom:6px"></div>
             <div class="fx-row">
-                <select id="aspect">
+                <select id="aspect" aria-label="Export size">
                     <option value="landscape">16:9 · 1920×1080</option>
                     <option value="portrait">9:16 · 1080×1920</option>
                 </select>
@@ -238,13 +239,13 @@
         <!-- Parameters -->
         <div class="panel controls-stack">
             <div class="section-label"><span>Shader parameters</span></div>
-            <div class="ctrl-row"><label>Speed</label><input type="range" id="speedCtrl" min="0.1" max="3.0" step="0.05" value="1.0"><span class="val" id="speedVal">1.00</span></div>
-            <div class="ctrl-row"><label>Zoom / Scale</label><input type="range" id="zoomCtrl" min="0.3" max="3.0" step="0.05" value="1.0"><span class="val" id="zoomVal">1.00</span></div>
-            <div class="ctrl-row"><label>Symmetry</label><input type="range" id="symCtrl" min="1" max="12" step="1" value="6"><span class="val" id="symVal">6</span></div>
-            <div class="ctrl-row"><label>Colour Shift</label><input type="range" id="hueCtrl" min="0" max="1" step="0.01" value="0.0"><span class="val" id="hueVal">0.00</span></div>
-            <div class="ctrl-row"><label>Colour</label><input type="color" id="colorCtrl" value="#00f0ff"><span class="val"></span></div>
-            <div class="ctrl-row"><label>Colour Lock</label><input type="range" id="lockCtrl" min="0" max="1" step="0.01" value="0.0"><span class="val" id="lockVal">0.00</span></div>
-            <div class="ctrl-row"><label>Audio React</label><input type="range" id="reactCtrl" min="0" max="2" step="0.05" value="1.0"><span class="val" id="reactVal">1.00</span></div>
+            <div class="ctrl-row"><label for="speedCtrl">Speed</label><input type="range" id="speedCtrl" min="0.1" max="3.0" step="0.05" value="1.0"><span class="val" id="speedVal">1.00</span></div>
+            <div class="ctrl-row"><label for="zoomCtrl">Zoom / Scale</label><input type="range" id="zoomCtrl" min="0.3" max="3.0" step="0.05" value="1.0"><span class="val" id="zoomVal">1.00</span></div>
+            <div class="ctrl-row"><label for="symCtrl">Symmetry</label><input type="range" id="symCtrl" min="1" max="12" step="1" value="6"><span class="val" id="symVal">6</span></div>
+            <div class="ctrl-row"><label for="hueCtrl">Colour Shift</label><input type="range" id="hueCtrl" min="0" max="1" step="0.01" value="0.0"><span class="val" id="hueVal">0.00</span></div>
+            <div class="ctrl-row"><label for="colorCtrl">Colour</label><input type="color" id="colorCtrl" value="#00f0ff"><span class="val"></span></div>
+            <div class="ctrl-row"><label for="lockCtrl">Colour Lock</label><input type="range" id="lockCtrl" min="0" max="1" step="0.01" value="0.0"><span class="val" id="lockVal">0.00</span></div>
+            <div class="ctrl-row"><label for="reactCtrl">Audio React</label><input type="range" id="reactCtrl" min="0" max="2" step="0.05" value="1.0"><span class="val" id="reactVal">1.00</span></div>
         </div>
 
         <!-- Auto-director: plan, timeline, scenes and effects -->
@@ -269,7 +270,7 @@
                 <div>
                     <div class="list-head">
                         <span>Effects</span>
-                        <select id="fx-type">
+                        <select id="fx-type" aria-label="Effect to add">
                             <option value="glitch">Glitch</option>
                             <option value="pixel">8-bit</option>
                             <option value="invert">Invert</option>

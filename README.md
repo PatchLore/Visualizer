@@ -167,7 +167,8 @@ limits.
 the page draws as it would full screen at that size. The page analyses the track offline (`__setupExport`) and
 draws each frame on request (`__renderExportFrame`), so the video is frame-accurate however slow the computer is.
 Frames are encoded with WebCodecs (H.264, falling back to VP9) and the audio with AAC (falling back to Opus), then
-muxed into an MP4 with [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) (loaded from jsDelivr, pinned to 5.2.2).
+muxed into an MP4 with [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) (loaded from jsDelivr, pinned to 5.2.2, on the
+first export or lyric sync rather than with the page).
 
 In Chrome and Edge the MP4 streams straight to a file the user picks, so long tracks don't fill memory. Other
 browsers build the file in memory, with the bitrate scaled down for long tracks, and offer it as a download.
