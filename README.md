@@ -46,7 +46,8 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
   found by the auto-director, with the clip set around it. Kicks paint bigger bursts, snares throw splatters and
   hi-hats speed up the swirl. On the reveal it flashes and snaps to the crisp original (or keeps the painting), then
   holds it with RGB split and zoom on kicks, drifting dust and the title. Strokes are scheduled per frame from the
-  track's analysis and drawn with a seeded random generator, so the preview and the MP4 are identical. Exports 9:16,
+  track's analysis and drawn with a seeded random generator, so the preview and the MP4 are identical. The MP4 is
+  painted at its full resolution (the preview paints the same strokes at a smaller size). Exports 9:16,
   1:1 or 16:9 clips of 15-60 s (or the whole track) with the clip's audio; without a track, a silent time-lapse.
 
 ## Short clips (Drop Hunter)
@@ -194,5 +195,9 @@ Tested so far in a Chromium-based browser on Windows (H.264 + Opus, in-memory pa
 Split out of the RemotionVideo studio, where the same pages export through a server (headless Chrome + ffmpeg).
 The two copies are now separate; changes to one aren't copied to the other.
 
-Third-party code: three.js r128 and the Tailwind Play CDN build are in `vendor/`. The Spectrum bar analysis follows the
-approach in caseif/vis.js (reimplemented).
+Third-party code: three.js r128 is in `vendor/`. The Spectrum bar analysis follows the approach in caseif/vis.js
+(reimplemented).
+
+AetherFlux and ChromaFlow are styled with Tailwind 3.4.17, built ahead of time to `css/aetherflux.css` and
+`css/chromaflow.css` from the configs in `styles/`. After adding or changing Tailwind classes in either page, rebuild
+with `npm run css` (it fetches the Tailwind CLI with npx) and commit the CSS.

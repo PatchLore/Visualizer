@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node dev-server.mjs 4330"
+    "dev": "node dev-server.mjs 4330",
+    "css": "npx -y tailwindcss@3.4.17 -i styles/tailwind.css -c styles/aetherflux.config.cjs -o css/aetherflux.css --minify && npx -y tailwindcss@3.4.17 -i styles/tailwind.css -c styles/chromaflow.config.cjs -o css/chromaflow.css --minify"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

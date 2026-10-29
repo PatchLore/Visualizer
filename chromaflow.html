@@ -22,23 +22,11 @@
     <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <meta name="theme-color" content="#05060a">
-    <script src="vendor/tailwind-3.4.17.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
     <script src="js/analytics.js"></script>
     <script src="js/export.js"></script>
     <script src="js/director.js"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
-                    colors: { zinc: { 850: '#1f1f23', 925: '#121215', 950: '#09090b' } }
-                }
-            }
-        }
-    </script>
     <style>
         input[type="range"] { -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }
         input[type="range"]::-webkit-slider-runnable-track { background: #27272a; height: 6px; border-radius: 999px; }
@@ -62,6 +50,7 @@
         .export-mode #exportCanvasHost { display: block; }
         #exportCanvasHost { display: none; position: fixed; inset: 0; }
     </style>
+    <link rel="stylesheet" href="css/chromaflow.css">
 </head>
 <body class="bg-zinc-950 text-zinc-100 font-sans antialiased h-screen flex flex-col overflow-hidden">
 
@@ -266,6 +255,8 @@
     // the live preview and the exported MP4 (js/export.js) paint exactly the same strokes.
     const EXPORT_JOB = new URLSearchParams(location.search).get('export');
     const FPS = 30;
+    // The painting's own coordinates: brush sizes, the image analysis and every stroke position are in these units.
+    // The strokes are drawn scaled to the output canvas, so a 1080p export is painted at full resolution, not upscaled.
     const PAINT_SIZES = { '9:16': [720, 1280], '1:1': [960, 960], '16:9': [1280, 720] };
     const EXPORT_ASPECT = { '9:16': 'portrait', '1:1': 'square', '16:9': 'landscape' };
 
@@ -459,9 +450,10 @@
             this.p = p;
             this.features = features;
             const [pw, ph] = PAINT_SIZES[p.aspect];
-            this.paint.width = this.ref.width = pw;
-            this.paint.height = this.ref.height = ph;
+            this.ref.width = pw; this.ref.height = ph;
+            this.paint.width = this.out.width; this.paint.height = this.out.height;
             this.W = pw; this.H = ph;
+            this.k = this.out.width / pw;   // paint units to output pixels
             this.crisp.width = this.out.width; this.crisp.height = this.out.height;
             const cctx = this.crisp.getContext('2d');
             if (p.image) { drawCover(this.rctx, pw, ph, p.image); drawCover(cctx, this.out.width, this.out.height, p.image); }
@@ -516,6 +508,7 @@
             this.strokeCount = 0;
             this.frame = -1;
             this.layers = null;
+            this.pctx.setTransform(this.k, 0, 0, this.k, 0, 0);
             this.pctx.fillStyle = this.p.bgColor;
             this.pctx.fillRect(0, 0, this.W, this.H);
             this.particles = [];
