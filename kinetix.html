@@ -10,6 +10,7 @@
     <script src="js/export.js"></script>
     <script src="js/director.js"></script>
     <script src="js/lyrics.js"></script>
+    <script src="js/clips.js"></script>
     <style>
         :root {
             --bg: #08090d; --panel: rgba(14, 16, 24, 0.86); --border: rgba(255, 255, 255, 0.12);
@@ -168,6 +169,7 @@
             <div id="lyrics-panel"></div>
 
             <div class="section-label divider"><span>Export</span></div>
+            <div id="clip-panel" style="margin-bottom:6px"></div>
             <div class="fx-row">
                 <select id="aspect">
                     <option value="landscape">16:9 · 1920×1080</option>
@@ -277,7 +279,7 @@ let bpm = 128, synthOn = false;
 let scenes = [], events = [], activeScene = -1;
 let fadeFrom = 0, fadeWeight = 0;   // the outgoing shader and how much of it still shows
 let direction = null, dirSeed = 1, dirPalette = null;   // the director's analysis of the current track
-let lyrics = null, lyricTime = 0, lyricsPanel = null;   // synced lines (js/lyrics.js) and the time they're drawn at
+let lyrics = null, lyricTime = 0, lyricsPanel = null, clipPicker = null;   // synced lines (js/lyrics.js) and the time they're drawn at
 
 function mixHex(a, b, t) {
     const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
@@ -705,6 +707,7 @@ function loadAudio(file) {
     if (!document.getElementById('title').value) document.getElementById('title').value = file.name.replace(/\.[^/.]+$/, '');
     activeScene = -1;
     if (lyricsPanel) lyricsPanel.trackChanged();
+    if (clipPicker) clipPicker.trackChanged();
     audioEl.play().then(() => { isPlaying = true; updatePlay(); }).catch(() => setStatus('Track loaded. Press ▶ Play to start.'));
     // A new track gets a plan straight away, unless scenes were already placed by hand.
     if (!scenes.length && !events.length) autoDirect(false);
@@ -856,7 +859,7 @@ async function analyseTrack(url, fps) {
     return { bands, duration: audio.duration };
 }
 
-let exportData = null, exportFps = 30;
+let exportData = null, exportFps = 30, exportStart = 0;   // exportStart: the first frame of a clip export
 window.__setupExport = async function () {
     const { settings: s, audioUrl } = window.__localExport;
     exportFps = s.fps;
@@ -875,9 +878,15 @@ window.__setupExport = async function () {
     autoFx = { glitch: 0, hyper: 0, flash: 0 };
     simTime = 0; clock = 0;
     exportData = await analyseTrack(audioUrl, exportFps);
-    return { frames: exportData.bands.length, duration: exportData.duration };
+    // A clip: warm the audio reaction up to its first frame (the scenes and effects follow the time on their own).
+    const total = exportData.bands.length, clip = s.clip;
+    exportStart = clip ? Math.min(total - 1, Math.round(clip.start * exportFps)) : 0;
+    const count = clip ? Math.min(total - exportStart, Math.round(clip.length * exportFps)) : total;
+    for (let k = 0; k < exportStart; k++) reactor(exportData.bands[k], 1 / exportFps);
+    return { frames: count, duration: count / exportFps, start: exportStart / exportFps, fade: !!clip };
 };
 window.__renderExportFrame = function (i) {
+    i += exportStart;
     const dt = 1 / exportFps, t = i / exportFps;
     applyTimeline(t);
     const r = reactor(exportData.bands[i], dt);
@@ -1164,7 +1173,8 @@ async function exportMp4() {
         if (isPlaying) { audioEl.pause(); isPlaying = false; updatePlay(); }
         const aspect = document.getElementById('aspect').value;
         const artist = document.getElementById('artist').value, title = document.getElementById('title').value;
-        const fileName = BrowserExport.fileNameFor(artist, title, aspect);
+        const clipNow = clipPicker && clipPicker.clip();
+        const fileName = BrowserExport.fileNameFor(artist, title, aspect).replace(/\.mp4$/, clipNow ? ` (${clipNow.length}s clip).mp4` : '.mp4');
         const save = await BrowserExport.pickSaveFile(fileName);   // first, while the click still counts as a gesture
         setStatus('Exporting…');
         exporting = true;
@@ -1179,6 +1189,7 @@ async function exportMp4() {
                 scenes: scenes.map(({ at, mode, color, fade }) => ({ at, mode, color, fade })),
                 events: events.map(({ at, dur, fx, from, to }) => ({ at, dur, fx, from, to })),
                 lyrics: lyricsPanel && lyricsPanel.lines() ? lyricsPanel.lines() : [],
+                clip: clipPicker ? clipPicker.clip() : null,
             },
         });
         if (result.savedTo) setStatus(`✓ Saved ${result.savedTo}`);
@@ -1355,6 +1366,13 @@ if (EXPORT_JOB) {
         seek: t => seekTo(t),
         onChange: l => { lyrics = l; },
         initialText: handoffLyrics,
+    });
+    // Short clips: the director's analysis of this track, when it has one, saves listening again.
+    clipPicker = ClipPicker.mount(document.getElementById('clip-panel'), {
+        getFile: () => currentFile,
+        getAnalysis: () => direction,
+        seek: t => { seekTo(t); if (audioEl && audioEl.paused) audioEl.play().then(() => { isPlaying = true; updatePlay(); }).catch(() => {}); },
+        onChange: () => {},
     });
     applyStudioHandoff(setLock);
     renderLists();

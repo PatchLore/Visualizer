@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LOOP//FORGE GIF Loops</title>
     <script src="js/analytics.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
+    <script src="js/export.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -72,6 +74,11 @@
         .canvas-card { position: relative; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7); background: #000; display: flex; max-width: 100%; }
         #glCanvas { display: block; max-width: min(75vw, 100%); max-height: 70vh; }
         @media (max-width: 900px) { #glCanvas { max-width: 100%; } }
+        /* Export mode (js/export.js loads this page in a hidden frame at the video's exact size): just the canvas. */
+        body.export-mode { display: block; overflow: hidden; }
+        .export-mode .sidebar, .export-mode .loop-hud { display: none; }
+        .export-mode .canvas-card { position: fixed; inset: 0; border: 0; border-radius: 0; box-shadow: none; }
+        .export-mode #glCanvas { max-width: none; max-height: none; width: 100vw; height: 100vh; }
         .loop-hud { display: flex; align-items: center; gap: 14px; font-size: 11px; color: var(--muted); background: var(--panel); padding: 8px 16px; border-radius: 20px; border: 1px solid var(--border); }
         .phase-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
         #resultContainer { display: none; flex-direction: column; align-items: center; gap: 10px; background: var(--panel); padding: 14px; border-radius: 8px; border: 1px solid var(--accent); }
@@ -163,6 +170,21 @@
         <div id="resultInfo"></div>
         <a id="downloadGifLink" class="download-link" download="loop_forge.gif">⬇ Download .GIF</a>
     </div>
+    <div class="control-group">
+        <div class="section-title">4. Video loop (MP4)</div>
+        <div class="ctrl">
+            <label>Format</label>
+            <select id="videoSelect">
+                <option value="portrait:8" selected>Spotify Canvas · 9:16 · 8 s</option>
+                <option value="portrait:15">Reels / TikTok · 9:16 · 15 s</option>
+                <option value="square:10">Square post · 1:1 · 10 s</option>
+                <option value="landscape:15">YouTube · 16:9 · 15 s</option>
+            </select>
+        </div>
+        <button class="export-btn" id="renderMp4Btn">Export seamless MP4</button>
+        <div class="hint" id="mp4Status">1080p, no sound, 30 fps. The loop repeats a whole number of times, so the video loops seamlessly too. Spotify Canvas takes 3 to 8 seconds, vertical.</div>
+    </div>
+
     <div class="hint">Rendered and encoded in your browser; nothing is uploaded. The preview plays at the GIF's speed (25 fps).</div>
 </aside>
 
@@ -713,12 +735,70 @@ btn.addEventListener('click', async () => {
     }
 });
 
+// ---- MP4 loops (js/export.js) ----
+// The video repeats the loop a whole number of times at 30 fps, so its last frame flows into its first like the GIF's.
+const EXPORT_JOB = new URLSearchParams(location.search).get('export');
+let exportLoop = null;
+window.__setupExport = async function () {
+    const { settings: s } = window.__localExport;
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    Object.assign(state, { mode: s.mode, comp: s.comp, zoom: s.zoom, hue: s.hue, glow: s.glow, chroma: s.chroma });
+    if (s.code) {
+        const built = buildProgram(s.code);
+        if (built.error) throw new Error('This AI loop does not compile in the renderer.');
+        state.custom = { built };
+    }
+    exportLoop = { fps: s.fps, loopSeconds: s.loopSeconds };
+    return { frames: Math.round(s.seconds * s.fps), duration: s.seconds };
+};
+window.__renderExportFrame = function (i) {
+    drawFrame(((i / exportLoop.fps) / exportLoop.loopSeconds) % 1);
+    return canvas;   // read right away by the exporter, in the same task as the draw
+};
+
+const mp4Btn = document.getElementById('renderMp4Btn'), mp4Status = document.getElementById('mp4Status');
+mp4Btn.addEventListener('click', async () => {
+    const [aspect, target] = document.getElementById('videoSelect').value.split(':');
+    const loopSeconds = +framesSelect.value * FRAME_MS / 1000;
+    const seconds = Math.max(1, Math.floor(+target / loopSeconds + 1e-6)) * loopSeconds;
+    mp4Btn.disabled = true;
+    try {
+        if (!BrowserExport.supported()) throw new Error('MP4 export needs Chrome or Edge on a computer. GIFs work everywhere.');
+        const name = state.custom ? slug(state.custom.name) : ['bio-neural', 'astral', 'fluid', 'clockwork', 'glitch', 'neon-city'][state.mode];
+        const fileName = `loopforge_${name}_${{ portrait: '9x16', square: '1x1', landscape: '16x9' }[aspect]}_${seconds}s.mp4`;
+        const save = await BrowserExport.pickSaveFile(fileName);   // first, while the click still counts as a gesture
+        mp4Status.textContent = 'Exporting…';
+        state.isEncoding = true;
+        const result = await BrowserExport.exportVideo({
+            page: 'loopforge.html', silent: true, aspect, fileName, save,
+            settings: {
+                mode: state.mode, code: state.custom ? state.custom.code : null, comp: state.comp, zoom: state.zoom, hue: state.hue,
+                glow: state.glow, chroma: state.chroma, loopSeconds, seconds,
+            },
+        });
+        mp4Status.textContent = result.savedTo ? `✓ Saved ${result.savedTo} (${seconds} s).` : `✓ ${fileName} is ready (${seconds} s). Use the Download button.`;
+        window.track && window.track('Loop MP4', { aspect, seconds, ai: !!state.custom });
+    } catch (err) {
+        mp4Status.textContent = `⚠ ${err.message}`;
+    } finally {
+        mp4Btn.disabled = false;
+        state.isEncoding = false;
+    }
+});
+
 // ---- Start ----
 initGeometry();
 presets = buildProgram(PRESETS);
 if (presets.error) console.error(presets.error);
-renderPresets();
-requestAnimationFrame(animate);
+if (EXPORT_JOB) {
+    document.body.classList.add('export-mode');
+    state.busy = true;   // no live preview behind the export
+    window.__visReady = true;
+} else {
+    renderPresets();
+    requestAnimationFrame(animate);
+}
 </script>
 </body>
 </html>

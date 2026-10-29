@@ -9,6 +9,8 @@
     <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
     <script src="js/analytics.js"></script>
     <script src="js/export.js"></script>
+    <script src="js/director.js"></script>
+    <script src="js/clips.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -225,6 +227,12 @@
                 <select id="export-aspect" class="bg-slate-950/70 border border-white/10 rounded-lg px-1.5 py-1 text-[10px] mono text-white focus:outline-none" title="Export size">
                     <option value="landscape">16:9 · 1920×1080</option>
                     <option value="portrait">9:16 · 1080×1920 (Shorts)</option>
+                </select>
+                <select id="export-length" class="bg-slate-950/70 border border-white/10 rounded-lg px-1.5 py-1 text-[10px] mono text-white focus:outline-none" title="Whole track, or the strongest short clip (found automatically)">
+                    <option value="full">Whole track</option>
+                    <option value="15">Best 15 s</option>
+                    <option value="30">Best 30 s</option>
+                    <option value="60">Best 60 s</option>
                 </select>
                 <button onclick="exportMp4()" id="export-btn" class="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/40 text-xs font-semibold mono transition" title="Render the whole track frame by frame to an MP4">⬇ Export MP4</button>
                 <span id="export-status" class="text-[10px] mono text-slate-300 max-w-[16rem] truncate"></span>
@@ -2244,7 +2252,7 @@
             renderSceneList();
         }
 
-        let exportData = null, exportTracker = null, exportFps = 30;
+        let exportData = null, exportTracker = null, exportFps = 30, exportStart = 0;   // exportStart: the first frame of a clip export
         const loadImage = src => new Promise((ok, fail) => { const img = new Image(); img.onload = () => ok(img); img.onerror = fail; img.src = src; });
 
         window.__setupExport = async function () {
@@ -2271,7 +2279,12 @@
             compositeCanvas.width = window.innerWidth;
             compositeCanvas.height = window.innerHeight;
             compositeCtx = compositeCanvas.getContext('2d');
-            return { frames: exportData.frames.length, duration: exportData.duration };
+            // A clip: run the beat tracker, scenes and motion up to its first frame.
+            const total = exportData.frames.length, clip = s.clip;
+            exportStart = clip ? Math.min(total - 1, Math.round(clip.start * exportFps)) : 0;
+            const count = clip ? Math.min(total - exportStart, Math.round(clip.length * exportFps)) : total;
+            if (exportStart) window.__advanceTo(exportStart);
+            return { frames: count, duration: count / exportFps, start: exportStart / exportFps, fade: !!clip };
         };
 
         // Section exports: run the beat tracker, scenes and motion up to frame n without drawing, so a section
@@ -2292,6 +2305,7 @@
         };
 
         window.__renderExportFrame = function (i) {
+            i += exportStart;
             const dt = 1 / exportFps, t = i / exportFps;
             freqData = exportData.frames[i];
             updateScenes(t, dt);
@@ -2326,6 +2340,7 @@
             return c.toDataURL(type, 0.92);
         }
 
+        let clipAnalysis = null;   // the director's analysis of the current track, for "Best 15/30/60 s"
         async function exportMp4() {
             const btn = document.getElementById('export-btn');
             btn.disabled = true;
@@ -2336,13 +2351,25 @@
                 const aspect = document.getElementById('export-aspect').value;
                 const title = document.getElementById('header-track-title').value;
                 const artist = document.getElementById('header-artist-name').value;
-                const fileName = BrowserExport.fileNameFor(artist, title, aspect);
+                const lengthChoice = document.getElementById('export-length').value;
+                const fileName = BrowserExport.fileNameFor(artist, title, aspect).replace(/\.mp4$/, lengthChoice === 'full' ? '.mp4' : ` (${lengthChoice}s clip).mp4`);
                 const save = await BrowserExport.pickSaveFile(fileName);   // first, while the click still counts as a gesture
+                let clip = null;
+                if (lengthChoice !== 'full') {
+                    // The strongest clip of that length: the director's sections and bars (js/clips.js).
+                    setExportStatus('Finding the best moment…');
+                    if (!clipAnalysis || clipAnalysis.file !== currentLocalFile) {
+                        const audio = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(await currentLocalFile.arrayBuffer());
+                        clipAnalysis = { file: currentLocalFile, result: await KinetixDirector.analyse(audio) };
+                    }
+                    const best = ClipPicker.find(clipAnalysis.result, +lengthChoice)[0];
+                    if (best) clip = { start: best.start, length: best.length };
+                }
                 setExportStatus('Exporting…');
                 const result = await BrowserExport.exportVideo({
                     page: 'aetherflux.html', audioFile: currentLocalFile, aspect, fileName, save,
                     settings: {
-                        title, artist,
+                        title, artist, clip,
                         params: { ...params },
                         topology: currentTopology,
                         camera: { ...camSpherical },

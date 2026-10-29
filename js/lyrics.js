@@ -1,5 +1,5 @@
-// Lyric sync for the visualisers: times every lyric word to the sung vocal, lets the user check and nudge the
-// lines, and draws them word by word.
+// Lyric sync for the visualisers: times every lyric word to the sung vocal (or takes the timings from an LRC file),
+// lets the user check and nudge the lines, and draws them word by word.
 //
 //   const panel = LyricSync.mount(container, { getFile, getTime, seek, onChange, initialText });
 //   panel.trackChanged();                       // after a new track loads (restores a sync saved for it)
@@ -123,6 +123,46 @@
         });
     }
 
+    // ---- LRC files ----
+    // Timed lyrics as distributors and lyric services supply them: "[mm:ss.xx]line", several stamps on a line for a
+    // repeated chorus, optional "<mm:ss.xx>word" stamps for each word, and an "[offset:+/-ms]" tag. Lines without word
+    // stamps spread their words evenly up to the next line (or a natural length for the last one). Returns null for
+    // text with fewer than two timed lines, so plain lyrics still go to the vocal sync.
+    function parseLrc(text) {
+        const stamp = s => { const m = /^(\d+):(\d+(?:[.:]\d+)?)$/.exec(s.trim()); return m ? +m[1] * 60 + parseFloat(m[2].replace(':', '.')) : null; };
+        const offsetTag = /\[offset:\s*([+-]?\d+)\s*\]/i.exec(text);
+        const offset = offsetTag ? -(+offsetTag[1]) / 1000 : 0;   // a positive offset means the lyrics come earlier
+        const raw = [];
+        for (const line of text.split(/\r?\n/)) {
+            const tags = [];
+            let rest = line.trim(), m;
+            while ((m = /^\[([^\]]+)\]/.exec(rest))) { const t = stamp(m[1]); if (t !== null) tags.push(t); rest = rest.slice(m[0].length); }
+            if (!tags.length) continue;
+            const words = [];
+            const parts = rest.split(/(<\d+:\d+(?:[.:]\d+)?>)/).filter(Boolean);
+            let at = null;
+            for (const p of parts) {
+                const w = /^<(.+)>$/.exec(p);
+                if (w) { at = stamp(w[1]); continue; }
+                for (const word of p.trim().split(/\s+/).filter(Boolean)) { words.push({ word, start: at }); at = null; }
+            }
+            if (!words.length) continue;
+            for (const t of tags) raw.push({ start: Math.max(0, t + offset), words: words.map(w => ({ word: w.word, start: w.start === null ? null : Math.max(0, w.start + offset + (t - tags[0])) })) });
+        }
+        if (raw.length < 2) return null;
+        raw.sort((a, b) => a.start - b.start);
+        return raw.map((ln, i) => {
+            const next = raw[i + 1];
+            const natural = ln.start + 0.6 + 0.42 * ln.words.length;
+            const end = next ? Math.max(ln.start + 0.3, Math.min(next.start - 0.1, natural + 2)) : natural;
+            const n = ln.words.length, step = (end - ln.start) / n;
+            const words = ln.words.map((w, k) => ({ word: w.word, start: w.start ?? ln.start + step * k, matched: true }));
+            words.forEach((w, k) => { w.end = k + 1 < n ? Math.max(w.start + 0.05, words[k + 1].start) : end; });
+            words.forEach(w => { w.start = +w.start.toFixed(3); w.end = +w.end.toFixed(3); });
+            return { text: ln.words.map(w => w.word).join(' '), start: words[0].start, end: +end.toFixed(3), words };
+        });
+    }
+
     // ---- The request ----
     const store = {
         get(key, fallback) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; } },
@@ -243,10 +283,10 @@
         container.innerHTML = `
             <div class="lyr">
                 <textarea placeholder="Paste the lyrics. [Section] headers are fine."></textarea>
-                <div class="lyr-row"><button type="button" class="lyr-sync">Sync to the vocal</button><label class="lyr-row"><input type="checkbox" class="lyr-show" checked> Show in the video</label></div>
+                <div class="lyr-row"><button type="button" class="lyr-sync">Sync to the vocal</button><button type="button" class="lyr-lrc" title="Use timed lyrics from an .lrc file">Import .lrc</button><input type="file" class="lyr-lrc-file" accept=".lrc,text/plain" hidden><label class="lyr-row"><input type="checkbox" class="lyr-show" checked> Show in the video</label></div>
                 <div class="lyr-status"></div>
                 <div class="lyr-list"></div>
-                <div class="lyr-hint">Click a time to play from that line; − and + move a line 0.1 s. Lines in amber had words the timing missed.</div>
+                <div class="lyr-hint">Already have timed lyrics? Import or paste an .lrc file: it's used as it is, with no sync needed. Click a time to play from that line; − and + move a line 0.1 s. Lines in amber had words the timing missed.</div>
             </div>`;
         const $ = s => container.querySelector(s);
         const ta = $('textarea'), list = $('.lyr-list'), status = $('.lyr-status'), show = $('.lyr-show'), btn = $('.lyr-sync');
@@ -274,7 +314,28 @@
             });
         }
 
+        // Timings from an LRC file: no request needed.
+        function useLrc(parsed) {
+            lines = parsed;
+            key = fileKey(getFile());
+            save(); render(); emit();
+            setStatus(`✓ Used the timings from the LRC: ${lines.length} lines${getFile() ? '' : '. Load the track to see them play'}.`);
+            window.track && window.track('Lyrics from LRC', { lines: lines.length });
+        }
+        $('.lyr-lrc').onclick = () => $('.lyr-lrc-file').click();
+        $('.lyr-lrc-file').onchange = async e => {
+            const f = e.target.files[0]; if (!f) return;
+            const text = await f.text();
+            const parsed = parseLrc(text);
+            if (!parsed) { setStatus('That file has no timed lines. An .lrc file has lines like [01:23.45] Lyric text.', true); return; }
+            ta.value = text;
+            useLrc(parsed);
+            e.target.value = '';
+        };
+
         btn.onclick = async () => {
+            const lrc = parseLrc(ta.value);
+            if (lrc) { useLrc(lrc); return; }
             const file = getFile();
             if (!file) { setStatus('Load the track first.', true); return; }
             if (lyricLines(ta.value).join(' ').split(/\s+/).length < 4) { setStatus('Paste the lyrics first.', true); return; }
@@ -307,9 +368,11 @@
         return {
             // A new track: bring back a sync saved for it in this browser, or clear the lines.
             trackChanged() {
+                const before = key;
                 key = fileKey(getFile());
                 const saved = key && store.get(key, null);
                 if (saved && saved.lines) { lines = saved.lines; if (saved.text) ta.value = saved.text; setStatus(`Restored the sync saved for this track (${lines.length} lines).`); }
+                else if (lines && !before) { save(); setStatus(`Using the ${lines.length} timed lines for this track.`); }   // timed (an LRC) before any track was loaded
                 else { lines = null; setStatus(''); }
                 render(); emit();
             },
@@ -317,5 +380,5 @@
         };
     }
 
-    window.LyricSync = { mount, draw, align, sync };
+    window.LyricSync = { mount, draw, align, sync, parseLrc };
 })();

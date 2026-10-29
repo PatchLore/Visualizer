@@ -28,6 +28,9 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
   the last frame flows into the first. Encoded in the browser with [gifenc](https://github.com/mattdesl/gifenc)
   (loaded from jsDelivr, pinned to 1.0.3) using one palette for the whole loop, so colours don't flicker, with an
   optional fixed ordered dither to smooth the glows. Works on phones too, since it doesn't need WebCodecs.
+  **Video loops (MP4)**: Spotify Canvas (9:16, 8 s), Reels/TikTok (9:16, 15 s), square (10 s) or YouTube (16:9, 15 s),
+  1080p at 30 fps with no audio track (`silent` in `js/export.js`, 8 Mbps). The loop repeats a whole number of times,
+  so the video loops seamlessly too.
   **Describe a loop** writes a new one from a prompt: `api/_lib/shader.js` has Claude write a GLSL `scene()`
   function to the same seamless rules, and the page compiles it and checks it (it compiles, isn't black, moves,
   matches itself after one loop, and draws a 480x480 frame in under 250 ms). Anything that fails goes back with the
@@ -41,10 +44,21 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
   track's analysis and drawn with a seeded random generator, so the preview and the MP4 are identical. Exports 9:16,
   1:1 or 16:9 clips of 15-60 s (or the whole track) with the clip's audio; without a track, a silent time-lapse.
 
+## Short clips (Drop Hunter)
+
+Spectrum and KINETIX have a clip picker by the Export button: choose 15, 30 or 60 seconds and **Find the best
+moments** lists the three strongest clips (with a preview button each); AetherFlux has a "Best 15/30/60 s" choice
+that takes the strongest automatically. `js/clips.js` scores clips from the auto-director's sections and bars: a clip
+opens on a bar about a third before a lift in the music (usually a drop), and scores on its average energy plus the
+size of the lift. The export renders only that stretch: the page warms its motion up to the clip's first frame, and
+`js/export.js` cuts the audio from the clip's start (`start` from `__setupExport`) and fades it in and out (`fade`).
+
 ## Lyric sync
 
 Spectrum and KINETIX have a Lyrics panel: paste the lyrics (the Studio's lyrics come across with "Make the video"),
-press **Sync to the vocal**, check the lines and nudge any that are off. Synced lyrics are drawn word by word in the
+press **Sync to the vocal**, check the lines and nudge any that are off. An `.lrc` file (timed lyrics from a
+distributor or lyric service, imported or pasted) is used as it is, with no sync request; word stamps, repeated
+line stamps and the offset tag are read. Synced lyrics are drawn word by word in the
 preview and the MP4, and saved in the browser per track, so a reload doesn't cost another sync.
 
 `js/lyrics.js` makes a small mono copy of the track in the browser (AAC or Opus in MP4, about 1.2 MB for a 4.7-minute

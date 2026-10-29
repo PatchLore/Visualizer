@@ -189,17 +189,19 @@
     }
 
     // page: the visualiser's own URL (loaded with ?export=local). settings: what the page's __setupExport reads.
-    // audioFile: the track as a File/Blob. save: a handle from pickSaveFile, or null for an in-memory file.
-    // Returns {blob, url} for in-memory exports (with a Download button left on screen), or {savedTo} for streamed ones.
-    async function exportVideo({ page, settings, audioFile, aspect = 'landscape', fileName = 'visualiser.mp4', save = null }) {
+    // audioFile: the track as a File/Blob. silent: true for a video with no audio track at all (loops such as Spotify
+    // Canvas, which plays without sound); then audioFile is not needed. save: a handle from pickSaveFile, or null for
+    // an in-memory file. Returns {blob, url} for in-memory exports (with a Download button left on screen), or
+    // {savedTo} for streamed ones.
+    async function exportVideo({ page, settings, audioFile, aspect = 'landscape', fileName = 'visualiser.mp4', save = null, silent = false }) {
         if (!supported()) throw new Error('Exporting needs WebCodecs. Use Chrome or Edge on a computer.');
-        if (!audioFile) throw new Error('Load a track first.');
+        if (!audioFile && !silent) throw new Error('Load a track first.');
         if (lastUrl) { URL.revokeObjectURL(lastUrl); lastUrl = null; }
         const [width, height] = SIZES[aspect] || SIZES.landscape;
         const ui = makeOverlay(width, height);
         let cancelled = false, keepOpen = false;
         ui.cancel.onclick = () => { cancelled = true; ui.set(0, 'Cancelling…'); };
-        const audioUrl = URL.createObjectURL(audioFile);
+        const audioUrl = audioFile ? URL.createObjectURL(audioFile) : null;
         let videoEncoder = null, audioEncoder = null, fileStream = null;
         const fail = { error: null };
         const check = () => { if (fail.error) throw fail.error; if (cancelled) throw new Error('Export cancelled.'); };
@@ -211,12 +213,13 @@
             if (onMobile()) {
                 throw new Error('Rendering a full video needs Chrome or Edge on a computer. Phones and tablets run out of memory part-way through, which reloads the page and loses the render.');
             }
-            const audio = await pickAudioConfig();
+            const audio = silent ? null : await pickAudioConfig();
 
-            ui.set(0, 'Decoding the track…');
-            let decoded = await new OfflineAudioContext(2, 1, SAMPLE_RATE).decodeAudioData(await audioFile.arrayBuffer());
+            ui.set(0, silent ? 'Preparing…' : 'Decoding the track…');
+            let decoded = silent ? null : await new OfflineAudioContext(2, 1, SAMPLE_RATE).decodeAudioData(await audioFile.arrayBuffer());
             // Without a save handle the whole MP4 is held in memory, so spend fewer bits per second on long tracks.
-            const bitrate = save ? 12_000_000
+            // Silent loops (Spotify Canvas and similar) are short and get uploaded, so they use a lighter 8 Mbps.
+            const bitrate = silent ? 8_000_000 : save ? 12_000_000
                 : Math.max(2_500_000, Math.min(12_000_000, Math.round(MAX_MEMORY_BYTES * 8 / Math.max(decoded.duration, 1))));
             const video = await pickVideoConfig(width, height, bitrate);
 
@@ -227,8 +230,9 @@
             win.__localExport = { settings: { ...settings, fps: FPS }, audioUrl };
 
             ui.set(0, 'Analysing the track…');
-            // start: where in the track the video begins (pages that export a clip, such as ChromaFlow); 0 otherwise.
-            const { frames, duration, start = 0 } = await win.__setupExport();
+            // start: where in the track the video begins (pages that export a clip); 0 otherwise. fade: the clip's audio
+            // fades in briefly and out over the last second, so it doesn't start or stop mid-note.
+            const { frames, duration, start = 0, fade = false } = await win.__setupExport();
             check();
 
             const { Muxer, StreamTarget, FileSystemWritableFileStreamTarget } = window.Mp4Muxer;
@@ -245,31 +249,41 @@
             const muxer = new Muxer({
                 target,
                 video: { codec: video.muxCodec, width, height, frameRate: FPS },
-                audio: { codec: audio.muxCodec, numberOfChannels: 2, sampleRate: SAMPLE_RATE },
+                ...(silent ? {} : { audio: { codec: audio.muxCodec, numberOfChannels: 2, sampleRate: SAMPLE_RATE } }),
                 fastStart: false,   // metadata at the end: media is written once, straight through, as it's encoded
                 firstTimestampBehavior: 'offset',
             });
 
             videoEncoder = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => { fail.error = e; } });
             videoEncoder.configure(video.config);
-            audioEncoder = new AudioEncoder({ output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), error: e => { fail.error = e; } });
-            audioEncoder.configure(audio.config);
+            if (!silent) {
+                audioEncoder = new AudioEncoder({ output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), error: e => { fail.error = e; } });
+                audioEncoder.configure(audio.config);
+            }
 
             // Audio first (seconds of work): the track from the clip's start, cut to the video's length, in 0.1 s blocks.
-            const offset = Math.min(decoded.length, Math.max(0, Math.round(start * SAMPLE_RATE)));
-            const total = Math.min(decoded.length - offset, Math.round(frames / FPS * SAMPLE_RATE));
+            const offset = silent ? 0 : Math.min(decoded.length, Math.max(0, Math.round(start * SAMPLE_RATE)));
+            const total = silent ? 0 : Math.min(decoded.length - offset, Math.round(frames / FPS * SAMPLE_RATE));
             const block = SAMPLE_RATE / 10;
             for (let at = 0; at < total; at += block) {
                 const count = Math.min(block, total - at);
+                const samples = planarAudio(decoded, offset + at, count);
+                if (fade) {
+                    const fadeIn = 0.08 * SAMPLE_RATE, fadeOut = 1.0 * SAMPLE_RATE;
+                    for (let k = 0; k < count; k++) {
+                        const n = at + k, g = Math.min(1, n / fadeIn, (total - n) / fadeOut);
+                        if (g < 1) { samples[k] *= g; samples[count + k] *= g; }
+                    }
+                }
                 const data = new AudioData({
                     format: 'f32-planar', sampleRate: SAMPLE_RATE, numberOfChannels: 2, numberOfFrames: count,
-                    timestamp: Math.round(at / SAMPLE_RATE * 1e6), data: planarAudio(decoded, offset + at, count),
+                    timestamp: Math.round(at / SAMPLE_RATE * 1e6), data: samples,
                 });
                 audioEncoder.encode(data);
                 data.close();
                 if ((at / block) % 100 === 0) await yieldNow();   // long tracks keep the progress bar moving
             }
-            await audioEncoder.flush();
+            if (audioEncoder) await audioEncoder.flush();
             decoded = null;   // the encoded audio is in the muxer now; free the decoded track before the video loop
             check();
 
@@ -337,7 +351,7 @@
             throw err;
         } finally {
             for (const enc of [videoEncoder, audioEncoder]) { if (enc && enc.state !== 'closed') { try { enc.close(); } catch {} } }
-            URL.revokeObjectURL(audioUrl);
+            if (audioUrl) URL.revokeObjectURL(audioUrl);
             if (!keepOpen) ui.remove();
         }
     }

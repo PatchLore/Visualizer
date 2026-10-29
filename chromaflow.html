@@ -732,7 +732,7 @@
         await document.fonts.load('600 30px Inter');
         exportPainter = new Painter(canvas);
         exportPainter.configure({ ...s.params, image }, features);
-        return { frames: exportPainter.frames, duration: s.params.clipLen, start: s.params.clipStart };
+        return { frames: exportPainter.frames, duration: s.params.clipLen, start: s.params.clipStart, fade: !!s.hasTrack };
     };
     window.__renderExportFrame = function (i) {
         exportPainter.advanceTo(i);

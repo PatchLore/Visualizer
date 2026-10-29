@@ -9,6 +9,8 @@
     <script src="js/analytics.js"></script>
     <script src="js/export.js"></script>
     <script src="js/lyrics.js"></script>
+    <script src="js/director.js"></script>
+    <script src="js/clips.js"></script>
     <style>
         :root { --accent: #ff2d55; }
         body { margin: 0; overflow: hidden; background: #05060a; color: #eef0f6; font-family: 'Montserrat', 'Segoe UI', sans-serif; }
@@ -89,6 +91,7 @@
     <div id="lyrics-panel"></div>
 
     <div class="section">Export</div>
+    <div id="clip-panel"></div>
     <label>Size
         <select id="aspect">
             <option value="landscape">16:9 · 1920×1080</option>
@@ -455,6 +458,7 @@ function loadAudio(file) {
     document.getElementById('title').value = file.name.replace(/\.[^/.]+$/, '');
     activeScene = -1;
     if (lyricsPanel) lyricsPanel.trackChanged();
+    if (clipPicker) clipPicker.trackChanged();
     audioEl.play().then(() => { isPlaying = true; updatePlay(); }).catch(() => setStatus('Track loaded. Tap ▶ Play to start.'));
 }
 
@@ -535,7 +539,7 @@ async function analyseTrack(url, fps) {
     return { frames, bass, sampleRate: sr, duration: audio.duration };
 }
 
-let exportData = null, exportFps = 30;
+let exportData = null, exportFps = 30, exportStart = 0;   // exportStart: the first frame of a clip export
 window.__setupExport = async function () {
     const { settings: s, audioUrl } = window.__localExport;
     exportFps = s.fps;
@@ -557,7 +561,12 @@ window.__setupExport = async function () {
     flowTracker = makeFlowTracker();
     mcPeak = 0.5;
     exportData = await analyseTrack(audioUrl, exportFps);
-    return { frames: exportData.frames.length, duration: exportData.duration };
+    // A clip: run the bars and particles up to its first frame, so it starts mid-song, not from rest.
+    const total = exportData.frames.length, clip = s.clip;
+    exportStart = clip ? Math.min(total - 1, Math.round(clip.start * exportFps)) : 0;
+    const count = clip ? Math.min(total - exportStart, Math.round(clip.length * exportFps)) : total;
+    if (exportStart) window.__advanceTo(exportStart);
+    return { frames: count, duration: count / exportFps, start: exportStart / exportFps, fade: !!clip };
 };
 window.__advanceTo = function (n) {
     const dt = 1 / exportFps;
@@ -569,6 +578,7 @@ window.__advanceTo = function (n) {
     }
 };
 window.__renderExportFrame = function (i) {
+    i += exportStart;
     const dt = 1 / exportFps, t = i / exportFps;
     updateScenes(t, dt);
     const heights = spectrumBars(exportData.frames[i], exportData.sampleRate, params.barCount, dt);
@@ -595,7 +605,8 @@ async function exportMp4() {
         if (isPlaying) { audioEl.pause(); isPlaying = false; updatePlay(); }
         const aspect = document.getElementById('aspect').value;
         const artist = document.getElementById('artist').value, title = document.getElementById('title').value;
-        const fileName = BrowserExport.fileNameFor(artist, title, aspect);
+        const clipNow = clipPicker && clipPicker.clip();
+        const fileName = BrowserExport.fileNameFor(artist, title, aspect).replace(/\.mp4$/, clipNow ? ` (${clipNow.length}s clip).mp4` : '.mp4');
         const save = await BrowserExport.pickSaveFile(fileName);   // first, while the click still counts as a gesture
         setStatus('Exporting…');
         const result = await BrowserExport.exportVideo({
@@ -607,6 +618,7 @@ async function exportMp4() {
                 bg: bgSrc, logo: logoSrc,
                 scenes: scenes.map(({ at, color, src }) => ({ at, color, bg: src })),
                 lyrics: lyricsPanel && lyricsPanel.lines() ? lyricsPanel.lines() : [],
+                clip: clipPicker ? clipPicker.clip() : null,
             },
         });
         if (result.savedTo) setStatus(`✓ Saved ${result.savedTo}`);
@@ -695,6 +707,16 @@ function bindControls() {
     window.addEventListener('keydown', e => { if (e.key.toLowerCase() === 'h' && !['INPUT', 'SELECT'].includes(document.activeElement.tagName)) document.body.classList.toggle('ui-hidden'); });
 }
 
+// Short clips (js/clips.js): the export can be the best 15/30/60 s instead of the whole track.
+let clipPicker = null;
+function mountClips() {
+    clipPicker = ClipPicker.mount(document.getElementById('clip-panel'), {
+        getFile: () => currentFile,
+        seek: t => { if (audioEl && audioEl.src) { audioEl.currentTime = t; activeScene = -1; audioEl.play().then(() => { isPlaying = true; updatePlay(); }).catch(() => {}); } },
+        onChange: () => {},
+    });
+}
+
 // Lyrics: synced to the vocal (js/lyrics.js), drawn by drawLyrics and passed to the export.
 let lyricsPanel = null;
 function mountLyrics(initialText) {
@@ -735,6 +757,7 @@ if (EXPORT_JOB) {
     initParticles();
     bindControls();
     mountLyrics((studioHandoff() || {}).lyrics || '');
+    mountClips();
     applyStudioHandoff();
     requestAnimationFrame(animate);
 }
