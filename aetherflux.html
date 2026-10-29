@@ -162,6 +162,34 @@
             background: rgba(255, 255, 255, 0.15);
             border-radius: 999px;
         }
+        /* Small screens: the side panels are bottom sheets, opened one at a time by the Shapes and Effects buttons; no synth dock on phones. */
+        .mobile-only { display: none !important; }
+        @media (max-width: 1100px) {
+            .mobile-only { display: inline-flex !important; }
+            #left-panel, #right-panel { top: auto !important; bottom: 0 !important; left: 0 !important; right: 0 !important; width: auto !important;
+                max-width: none !important; max-height: 64vh; border-radius: 18px 18px 0 0 !important; z-index: 40 !important;
+                transform: translateY(105%); transition: transform 0.25s ease; padding-bottom: calc(16px + env(safe-area-inset-bottom)) !important; }
+            #left-panel.sheet-open, #right-panel.sheet-open { transform: none; }
+            #left-panel button, #right-panel button, #left-panel select, #right-panel select { min-height: 40px; }
+        }
+        @media (max-width: 720px) {
+            #piano-dock { display: none !important; }
+            /* Phones: a slim title card on top, the transport and export controls docked at the bottom. */
+            header { top: 8px !important; left: 8px !important; right: 8px !important; }
+            #meta-card { width: 100%; padding: 8px 12px; gap: 10px; }
+            #meta-card .nav-extra, #meta-card .now-row, #cover-art-thumb { display: none !important; }
+            #meta-card .flex-col:has(> #header-track-title) { flex: 1; min-width: 0; }
+            #header-track-title, #header-artist-name { width: 100%; }
+            #transport-card { position: fixed; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); gap: 8px; }
+            #scrub-box { flex: 1; min-width: 0; }
+            #track-scrubber { width: 100%; min-width: 0; }
+            #export-group { flex-basis: 100%; min-width: 0; padding-left: 0; border-left: 0; }
+            #export-group select { flex: 1; width: 0; min-width: 0; }
+            /* Rows: play and scrubber, then export, then live recording and the panels. */
+            #rec-full-btn, #transport-card > .mobile-only, #toggle-ui-btn { order: 2; flex: 1 1 auto; justify-content: center; padding-inline: 10px; }
+            #export-status:empty { display: none; }
+            #transport-card button, #transport-card select { min-height: 40px; }
+        }
     </style>
 </head>
 <body class="relative w-screen h-screen overflow-hidden">
@@ -180,18 +208,18 @@
 
     <header class="fixed top-4 left-4 right-4 z-30 flex flex-wrap items-center justify-between gap-3 pointer-events-none">
         <!-- Top-Left Artist, Track & Direct Upload Card -->
-        <div class="glass-panel px-4 py-2.5 rounded-2xl flex flex-wrap items-center gap-3.5 pointer-events-auto border border-cyan-500/25">
+        <div id="meta-card" class="glass-panel px-4 py-2.5 rounded-2xl flex flex-wrap items-center gap-3.5 pointer-events-auto border border-cyan-500/25">
             <a href="index.html" class="text-[10px] mono text-slate-400 hover:text-white pr-2 border-r border-white/10" title="All visualisers">← Home</a>
-            <a href="spectrum.html" class="text-[10px] mono text-slate-400 hover:text-white pr-2 border-r border-white/10" title="The Spectrum visualiser">Spectrum</a>
-            <a href="kinetix.html" class="text-[10px] mono text-slate-400 hover:text-white pr-2 border-r border-white/10" title="The KINETIX shader visualiser">KINETIX</a>
-            <a href="loopforge.html" class="text-[10px] mono text-slate-400 hover:text-white pr-2 border-r border-white/10" title="Seamless GIF loops">GIF loops</a>
-            <a href="chromaflow.html" class="text-[10px] mono text-slate-400 hover:text-white pr-2 border-r border-white/10" title="Cover art that paints itself to the music">Cover reveal</a>
+            <a href="spectrum.html" class="nav-extra text-[10px] mono text-slate-400 hover:text-white pr-2 border-r border-white/10" title="The Spectrum visualiser">Spectrum</a>
+            <a href="kinetix.html" class="nav-extra text-[10px] mono text-slate-400 hover:text-white pr-2 border-r border-white/10" title="The KINETIX shader visualiser">KINETIX</a>
+            <a href="loopforge.html" class="nav-extra text-[10px] mono text-slate-400 hover:text-white pr-2 border-r border-white/10" title="Seamless GIF loops">GIF loops</a>
+            <a href="chromaflow.html" class="nav-extra text-[10px] mono text-slate-400 hover:text-white pr-2 border-r border-white/10" title="Cover art that paints itself to the music">Cover reveal</a>
             <div onclick="document.getElementById('bg-file-input').click()" id="cover-art-thumb" class="relative flex items-center justify-center w-12 h-12 rounded-xl bg-cyan-500/15 border border-cyan-400/30 cursor-pointer overflow-hidden group shrink-0" title="Click to upload Cover / Background Image">
                 <div id="cover-default-icon" class="w-3.5 h-3.5 rounded-full bg-cyan-400 shadow-[0_0_12px_#06b6d4] animate-pulse"></div>
                 <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[9px] font-bold mono text-cyan-200 transition">BG IMG</div>
             </div>
             <div class="flex flex-col">
-                <div class="flex items-center gap-2 mb-0.5">
+                <div class="now-row flex items-center gap-2 mb-0.5">
                     <span class="text-[9px] mono uppercase tracking-widest px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">NOW VISUALIZING</span>
                     <span id="audio-mode-badge" class="text-[9px] mono uppercase text-slate-400">SYNTH 124 BPM</span>
                 </div>
@@ -216,7 +244,7 @@
         </div>
 
         <!-- Global Transport (Play / Pause / Scrubber) & Full-Track Auto-Export Studio -->
-        <div class="glass-panel px-3.5 py-2 rounded-2xl flex flex-wrap items-center gap-2.5 pointer-events-auto">
+        <div id="transport-card" class="glass-panel px-3.5 py-2 rounded-2xl flex flex-wrap items-center gap-2.5 pointer-events-auto">
             <!-- Play / Pause Button -->
             <button onclick="toggleAudioEngine()" id="audio-toggle-btn" class="px-3.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-semibold mono transition flex items-center gap-1.5">
                 <span>▶ Play</span>
@@ -228,20 +256,20 @@
             </button>
 
             <!-- Track Progress Scrubber & Time Readout -->
-            <div class="flex items-center gap-2 bg-slate-950/70 px-2.5 py-1 rounded-xl border border-white/10">
+            <div id="scrub-box" class="flex items-center gap-2 bg-slate-950/70 px-2.5 py-1 rounded-xl border border-white/10">
                 <span id="track-time-current" class="text-[10px] mono text-cyan-300">0:00</span>
                 <input id="track-scrubber" type="range" min="0" max="100" step="0.1" value="0" oninput="seekAudioTrack(this.value)" class="w-20 sm:w-28 accent-cyan-400">
                 <span id="track-time-total" class="text-[10px] mono text-slate-400">SYNTH</span>
             </div>
 
             <!-- Record & Auto-Export Full Track Button -->
-            <button onclick="recordFullTrackFromStart()" id="rec-full-btn" class="px-3 py-1.5 rounded-xl bg-rose-500/25 hover:bg-rose-500/35 text-rose-200 border border-rose-500/50 text-xs font-semibold mono transition flex items-center gap-1.5" title="Rewind to 0:00, record entire track, and auto-export when finished">
+            <button onclick="recordFullTrackFromStart()" id="rec-full-btn" class="px-3 py-1.5 rounded-xl bg-rose-500/25 hover:bg-rose-500/35 text-rose-200 border border-rose-500/50 text-xs font-semibold mono transition flex items-center gap-1.5" title="Rewind to 0:00, record the entire track in real time, and save it as a WebM when finished">
                 <span id="rec-dot" class="w-2 h-2 rounded-full bg-rose-400"></span>
-                <span id="rec-label">⏺ Live Rec (WebM)</span>
+                <span id="rec-label">⏺ Live Rec</span>
             </button>
 
             <!-- Frame-by-frame export: renders every frame at full size in the browser, muxed with the original audio -->
-            <div class="flex items-center gap-1.5 pl-1.5 border-l border-white/10">
+            <div id="export-group" class="flex items-center gap-1.5 pl-1.5 border-l border-white/10">
                 <select id="export-aspect" class="bg-slate-950/70 border border-white/10 rounded-lg px-1.5 py-1 text-[10px] mono text-white focus:outline-none" title="Export size">
                     <option value="landscape">16:9 · 1920×1080</option>
                     <option value="portrait">9:16 · 1080×1920 (Shorts)</option>
@@ -260,6 +288,8 @@
                 <span>⚡</span>
             </button>
 
+            <button onclick="toggleSheet('left-panel')" class="mobile-only px-3 py-1.5 rounded-xl bg-cyan-500/20 border border-cyan-400/40 text-cyan-100 text-xs mono items-center" aria-controls="left-panel">Shapes</button>
+            <button onclick="toggleSheet('right-panel')" class="mobile-only px-3 py-1.5 rounded-xl bg-cyan-500/20 border border-cyan-400/40 text-cyan-100 text-xs mono items-center" aria-controls="right-panel">Effects</button>
             <button onclick="toggleAllPanels()" id="toggle-ui-btn" class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-slate-200 hover:text-white transition text-xs mono flex items-center gap-1.5" title="Hide/Show Side Panels (Full Screen View)">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path>
@@ -278,6 +308,7 @@
     </div>
 
     <aside id="left-panel" class="fixed top-20 left-4 bottom-28 w-72 max-w-[calc(100vw-2rem)] z-20 glass-panel rounded-2xl p-4 flex flex-col gap-3.5 overflow-y-auto transition-all duration-300">
+        <button onclick="toggleSheet(null)" class="mobile-only self-end px-3 rounded-xl bg-white/10 border border-white/15 text-slate-200 text-xs mono items-center">Close ✕</button>
         <!-- 01. Audio Source Selector -->
         <div class="flex flex-col gap-2">
             <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mono">01 // Audio Input Source</span>
@@ -399,6 +430,7 @@
     </aside>
 
     <aside id="right-panel" class="fixed top-20 right-4 bottom-28 w-80 max-w-[calc(100vw-2rem)] z-20 glass-panel rounded-2xl p-4 flex flex-col gap-3.5 overflow-y-auto transition-all duration-300">
+        <button onclick="toggleSheet(null)" class="mobile-only self-end px-3 rounded-xl bg-white/10 border border-white/15 text-slate-200 text-xs mono items-center">Close ✕</button>
         <!-- 04. Interactive XY Filter & Delay Pad -->
         <div class="flex flex-col gap-2">
             <div class="flex items-center justify-between">
@@ -1699,6 +1731,15 @@
         }
 
         let panelsVisible = true;
+        // Small screens: one side panel at a time as a bottom sheet (null closes both).
+        function toggleSheet(id) {
+            if (id && !panelsVisible) toggleAllPanels();
+            for (const panelId of ['left-panel', 'right-panel']) {
+                const el = document.getElementById(panelId);
+                el.classList.toggle('sheet-open', panelId === id && !el.classList.contains('sheet-open'));
+            }
+        }
+
         function toggleAllPanels() {
             panelsVisible = !panelsVisible;
             const left = document.getElementById('left-panel');
@@ -1800,7 +1841,7 @@
             const recLabel = document.getElementById('rec-label');
             const recDot = document.getElementById('rec-dot');
             const toast = document.getElementById('rec-toast');
-            if (recLabel) recLabel.textContent = '⏺ Rec & Auto-Export';
+            if (recLabel) recLabel.textContent = '⏺ Live Rec';
             if (recDot) recDot.classList.remove('animate-ping');
             if (toast) toast.classList.replace('opacity-100', 'opacity-0');
         }

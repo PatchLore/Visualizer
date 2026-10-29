@@ -44,7 +44,7 @@
             position: fixed; inset: 0; z-index: 2; pointer-events: none; display: flex; flex-direction: column;
             justify-content: space-between; gap: 16px; padding: 16px; overflow-y: auto; transition: opacity 0.25s ease; user-select: none;
         }
-        .ui-hidden #hud { opacity: 0; }
+        .ui-hidden #hud { opacity: 0; pointer-events: none; }
         .ui-hidden #hud * { pointer-events: none !important; }
         .export-mode #hud { display: none; }
         .hud-top, .hud-bottom { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
@@ -118,10 +118,20 @@
         .row .del:hover { color: #fff; background: none; }
         .empty { color: var(--muted); font-size: 10px; padding: 4px 2px; }
 
+        #hud-toggle { display: none; }
         @media (max-width: 900px) {
             .hud-top, .hud-bottom { flex-direction: column; align-items: stretch; }
             .controls-stack, .panel { width: auto !important; max-width: none; }
             .dir-lists { grid-template-columns: 1fr; }
+            /* One scrolling bottom sheet over the picture, collapsible to its handle. */
+            #hud { top: auto; max-height: 62vh; justify-content: flex-start; padding: 0 12px calc(12px + env(safe-area-inset-bottom));
+                background: rgba(8, 9, 13, 0.9); border-top: 1px solid var(--border); border-radius: 16px 16px 0 0; pointer-events: auto; }
+            #hud.collapsed { padding-bottom: env(safe-area-inset-bottom); }
+            #hud.collapsed > :not(#hud-toggle) { display: none; }
+            #hud-toggle { display: block; position: sticky; top: 0; z-index: 3; margin: 0 -12px; padding: 12px; border: 0; border-radius: 16px 16px 0 0;
+                background: rgba(8, 9, 13, 0.97); text-align: center; flex: 0 0 auto; }
+            #hud button, #hud select, #hud input[type="text"] { min-height: 40px; }
+            .bank-grid button, .fx-row > button { padding: 10px; }
         }
     </style>
 </head>
@@ -130,6 +140,7 @@
 <input type="file" id="audio-file" accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.ogg,.opus,.aif,.aiff" hidden>
 
 <div id="hud">
+    <button id="hud-toggle" type="button" aria-expanded="true" aria-controls="hud">Hide controls ▾</button>
     <div class="hud-top">
         <!-- Brand, shaders and the track -->
         <div class="panel" style="width: 330px;">
@@ -1394,6 +1405,13 @@ if (EXPORT_JOB) {
         onChange: () => {},
     });
     applyStudioHandoff(setLock);
+    // Small screens: collapse the controls sheet to see the picture.
+    const hudToggle = document.getElementById('hud-toggle');
+    hudToggle.onclick = () => {
+        const collapsed = document.getElementById('hud').classList.toggle('collapsed');
+        hudToggle.textContent = collapsed ? 'Controls ▴' : 'Hide controls ▾';
+        hudToggle.setAttribute('aria-expanded', String(!collapsed));
+    };
     renderLists();
     updateDirInfo();
     requestAnimationFrame(animate);
