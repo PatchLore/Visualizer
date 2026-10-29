@@ -125,6 +125,13 @@ In the Vercel project, under Settings → Environment Variables, add:
 
 Redeploy after changing variables.
 
+### Sharing previews and search
+
+Every page has a description, a canonical link, OpenGraph and Twitter card tags with its own 1200x630 image in `og/`,
+and the icons (`favicon.svg`, `favicon-32.png`, `apple-touch-icon.png`); `robots.txt` and `sitemap.xml` sit at the root.
+They use the live address, https://visualizer-eight-nu.vercel.app: with a custom domain, replace it in the `.html`
+pages, `robots.txt` and `sitemap.xml`. `vercel.json` redirects the old `monstercat.html` to `spectrum.html` (301).
+
 ### Daily limits
 
 The three AI endpoints (the Studio, the loop writer and lyric sync) count requests per visitor per day in

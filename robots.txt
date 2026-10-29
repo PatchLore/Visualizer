@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://visualizer-eight-nu.vercel.app/sitemap.xml

@@ -10,5 +10,12 @@
     "api/lyrics.js": {
       "maxDuration": 60
     }
-  }
+  },
+  "redirects": [
+    {
+      "source": "/monstercat.html",
+      "destination": "/spectrum.html",
+      "permanent": true
+    }
+  ]
 }
