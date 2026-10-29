@@ -10,7 +10,7 @@
 //   const save = await BrowserExport.pickSaveFile(name);         // call first, inside the click handler
 //   await BrowserExport.exportVideo({page, settings, audioFile, aspect, fileName, save});
 (function () {
-    const SIZES = { landscape: [1920, 1080], portrait: [1080, 1920] };
+    const SIZES = { landscape: [1920, 1080], portrait: [1080, 1920], square: [1080, 1080] };
     const FPS = 30;
     const SAMPLE_RATE = 48000;
     // The in-memory path can't stream to disk, so cap the quality to keep a long track's file (and the memory it
@@ -227,7 +227,8 @@
             win.__localExport = { settings: { ...settings, fps: FPS }, audioUrl };
 
             ui.set(0, 'Analysing the track…');
-            const { frames, duration } = await win.__setupExport();
+            // start: where in the track the video begins (pages that export a clip, such as ChromaFlow); 0 otherwise.
+            const { frames, duration, start = 0 } = await win.__setupExport();
             check();
 
             const { Muxer, StreamTarget, FileSystemWritableFileStreamTarget } = window.Mp4Muxer;
@@ -254,14 +255,15 @@
             audioEncoder = new AudioEncoder({ output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), error: e => { fail.error = e; } });
             audioEncoder.configure(audio.config);
 
-            // Audio first (seconds of work): the track, cut to the video's length, in 0.1 s blocks.
-            const total = Math.min(decoded.length, Math.round(frames / FPS * SAMPLE_RATE));
+            // Audio first (seconds of work): the track from the clip's start, cut to the video's length, in 0.1 s blocks.
+            const offset = Math.min(decoded.length, Math.max(0, Math.round(start * SAMPLE_RATE)));
+            const total = Math.min(decoded.length - offset, Math.round(frames / FPS * SAMPLE_RATE));
             const block = SAMPLE_RATE / 10;
             for (let at = 0; at < total; at += block) {
                 const count = Math.min(block, total - at);
                 const data = new AudioData({
                     format: 'f32-planar', sampleRate: SAMPLE_RATE, numberOfChannels: 2, numberOfFrames: count,
-                    timestamp: Math.round(at / SAMPLE_RATE * 1e6), data: planarAudio(decoded, at, count),
+                    timestamp: Math.round(at / SAMPLE_RATE * 1e6), data: planarAudio(decoded, offset + at, count),
                 });
                 audioEncoder.encode(data);
                 data.close();
@@ -381,7 +383,7 @@
     function fileNameFor(artist, title, aspect) {
         const clean = s => (s || '').replace(/[\\/:*?"<>|]+/g, '').trim();
         const base = [clean(artist), clean(title)].filter(Boolean).join(' - ') || 'visualiser';
-        return `${base}${aspect === 'portrait' ? ' (9x16)' : ''}.mp4`;
+        return `${base}${aspect === 'portrait' ? ' (9x16)' : aspect === 'square' ? ' (1x1)' : ''}.mp4`;
     }
 
     window.BrowserExport = { supported, pickSaveFile, exportVideo, fileNameFor };

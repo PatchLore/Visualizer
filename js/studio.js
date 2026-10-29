@@ -295,6 +295,7 @@
     $('refine-form').addEventListener('submit', e => { e.preventDefault(); refine($('refine-text').value.trim()); });
     $('description').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) $('compose').requestSubmit(); });
     $('make-video').addEventListener('click', handOff);
+    $('make-reveal').addEventListener('click', handOff);
 
     // Spectrum card: a row of bars with staggered timing.
     const bars = $('bars');

@@ -7,7 +7,7 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
   Variety settings, lyrics with structure tags, three titles, a scene-by-scene video plan (palette, art style,
   image prompts tied to the lyrics), a YouTube kit and notes explaining the choices. Any result can be rewritten
   with a chip or a sentence. Written by Claude; the engine is `api/_lib/compose.js`.
-- **Three visualisers** that run entirely in the browser and export full-length MP4s. Audio and images stay on the
+- **Visualisers** that run entirely in the browser and export MP4s. Audio and images stay on the
   user's computer. "Make the video" in the Studio opens the right one with the title, artist and colour set.
   - **AetherFlux** (`aetherflux.html`): a 3D particle galaxy (three.js) that morphs between seven shapes, a
     beat-reactive centre with a logo, a classic spectrum, and a scene timeline.
@@ -33,6 +33,13 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
   matches itself after one loop, and draws a 480x480 frame in under 250 ms). Anything that fails goes back with the
   problem for a fix, twice at most. Working loops become presets saved in the browser, and can be changed with a
   sentence ("make it blue"). Abstract and graphic ideas work best; real-world subjects come out as neon line art.
+- **ChromaFlow** (`chromaflow.html`): a cover-art reveal. An uploaded image (or one of four presets) is painted as a
+  time-lapse in six brush styles, coarse to fine, and completes on the reveal: by default the track's first drop,
+  found by the auto-director, with the clip set around it. Kicks paint bigger bursts, snares throw splatters and
+  hi-hats speed up the swirl. On the reveal it flashes and snaps to the crisp original (or keeps the painting), then
+  holds it with RGB split and zoom on kicks, drifting dust and the title. Strokes are scheduled per frame from the
+  track's analysis and drawn with a seeded random generator, so the preview and the MP4 are identical. Exports 9:16,
+  1:1 or 16:9 clips of 15-60 s (or the whole track) with the clip's audio; without a track, a silent time-lapse.
 
 ## Home page, Pro and analytics
 

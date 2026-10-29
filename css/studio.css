@@ -174,6 +174,12 @@ a.vis p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
 .gear { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; border: 3px dotted rgba(255,140,26,0.9);
     box-shadow: 0 0 22px rgba(255,140,26,0.45); animation: spin 6s linear infinite; }
 .gear.two { width: 70px; height: 70px; margin: -35px 0 0 -35px; border-color: rgba(0,240,255,0.85); box-shadow: 0 0 18px rgba(0,240,255,0.45); animation-direction: reverse; animation-duration: 4s; }
+.chroma .preview { background: linear-gradient(170deg, #2e1065, #be185d 60%, #f59e0b); }
+.stroke { position: absolute; left: 20%; top: 30%; width: 60%; height: 14px; border-radius: 999px; background: rgba(254, 240, 138, 0.9);
+    box-shadow: 0 0 18px rgba(251, 146, 60, 0.6); transform-origin: left center; animation: brush 2.8s ease-in-out infinite; }
+.stroke.two { top: 48%; left: 14%; background: rgba(76, 29, 149, 0.95); animation-delay: -0.9s; }
+.stroke.three { top: 66%; left: 26%; background: rgba(236, 72, 153, 0.95); animation-delay: -1.8s; }
+@keyframes brush { 0% { transform: scaleX(0); opacity: 0; } 15% { opacity: 1; } 60%, 100% { transform: scaleX(1); opacity: 1; } }
 @keyframes zoom { 0% { transform: rotate(45deg) scale(0.1); opacity: 0; } 15% { opacity: 1; } 100% { transform: rotate(135deg) scale(1.6); opacity: 0; } }
 
 /* ---- Free and Pro ---- */
@@ -199,4 +205,4 @@ footer p { margin: 4px 0; }
     .show-grid .show { flex: 0 0 82%; scroll-snap-align: start; }
     .loop-grid .show { flex: 0 0 44%; scroll-snap-align: start; }
 }
-@media (prefers-reduced-motion: reduce) { .ring, .bar, .tunnel, .gear, .thinking i { animation: none; } .tunnel { opacity: 1; transform: rotate(45deg) scale(0.6); } }
+@media (prefers-reduced-motion: reduce) { .ring, .bar, .tunnel, .gear, .stroke, .thinking i { animation: none; } .tunnel { opacity: 1; transform: rotate(45deg) scale(0.6); } }

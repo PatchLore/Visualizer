@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChromaFlow Cover Reveal</title>
+    <script src="vendor/tailwind-3.4.17.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
+    <script src="js/analytics.js"></script>
+    <script src="js/export.js"></script>
+    <script src="js/director.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+                    colors: { zinc: { 850: '#1f1f23', 925: '#121215', 950: '#09090b' } }
+                }
+            }
+        }
+    </script>
+    <style>
+        input[type="range"] { -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }
+        input[type="range"]::-webkit-slider-runnable-track { background: #27272a; height: 6px; border-radius: 999px; }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; margin-top: -5px; background-color: #ec4899; height: 16px; width: 16px;
+            border-radius: 999px; border: 2px solid #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,0.4); transition: transform 0.15s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+        input[type="range"]:disabled { opacity: 0.4; cursor: default; }
+        .stage-backdrop {
+            background-color: #09090b;
+            background-image: radial-gradient(circle at 50% 35%, rgba(236, 72, 153, 0.08), transparent 60%),
+                linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 100% 100%, 24px 24px, 24px 24px;
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #121215; }
+        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 9999px; }
+        .export-mode header, .export-mode aside, .export-mode main > *:not(#canvasViewport) { display: none !important; }
+        .export-mode, .export-mode body { overflow: hidden; }
+        .export-mode #exportCanvasHost { display: block; }
+        #exportCanvasHost { display: none; position: fixed; inset: 0; }
+    </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 font-sans antialiased h-screen flex flex-col overflow-hidden">
+
+    <header class="h-14 border-b border-zinc-800/80 bg-zinc-925/90 backdrop-blur-md px-4 flex items-center justify-between shrink-0 z-20 gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-500 via-violet-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-pink-500/20 shrink-0">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                </svg>
+            </div>
+            <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                    <h1 class="font-bold text-sm tracking-tight text-white">ChromaFlow</h1>
+                    <span class="hidden sm:inline text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/20">Cover Reveal</span>
+                </div>
+                <p class="text-[11px] text-zinc-400 truncate">
+                    <a href="index.html" class="hover:text-white">Home</a> · <a href="spectrum.html" class="hover:text-white">Spectrum</a> ·
+                    <a href="aetherflux.html" class="hover:text-white">AetherFlux</a> · <a href="kinetix.html" class="hover:text-white">KINETIX</a> ·
+                    <a href="loopforge.html" class="hover:text-white">GIF loops</a>
+                </p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+            <button id="btnSnapshot" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium border border-zinc-700/80 transition active:scale-95" title="Save the current frame as a PNG">
+                <span class="hidden md:inline">Save PNG</span><span class="md:hidden">PNG</span>
+            </button>
+            <button id="btnExport" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-pink-600 to-violet-600 hover:from-pink-500 hover:to-violet-500 text-white font-semibold text-xs shadow-lg shadow-pink-600/20 transition active:scale-95">
+                Export MP4
+            </button>
+        </div>
+    </header>
+
+    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        <aside class="w-full lg:w-80 bg-zinc-925 border-b lg:border-b-0 lg:border-r border-zinc-800/80 flex flex-col overflow-y-auto shrink-0 max-h-[42vh] lg:max-h-full">
+            <div class="p-4 space-y-5">
+
+                <!-- 1. Artwork -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-xs font-semibold uppercase tracking-wider text-zinc-400">1. Cover art</label>
+                        <label for="imageUpload" class="text-xs text-pink-400 hover:text-pink-300 font-medium cursor-pointer">Upload image</label>
+                        <input id="imageUpload" type="file" accept="image/*" class="hidden">
+                    </div>
+                    <div class="grid grid-cols-4 gap-2" id="presetButtons">
+                        <button data-preset="sunset" class="preset-btn rounded-lg overflow-hidden border-2 border-pink-500 aspect-square flex flex-col items-center justify-end p-1 bg-gradient-to-b from-indigo-900 via-pink-600 to-amber-400"><span class="text-[10px] font-medium text-white bg-black/50 px-1.5 rounded">Sunset</span></button>
+                        <button data-preset="cyber" class="preset-btn rounded-lg overflow-hidden border-2 border-zinc-800 hover:border-zinc-600 aspect-square flex flex-col items-center justify-end p-1 bg-gradient-to-tr from-slate-950 via-fuchsia-600 to-cyan-400"><span class="text-[10px] font-medium text-white bg-black/50 px-1.5 rounded">Neon City</span></button>
+                        <button data-preset="botanical" class="preset-btn rounded-lg overflow-hidden border-2 border-zinc-800 hover:border-zinc-600 aspect-square flex flex-col items-center justify-end p-1 bg-gradient-to-tr from-emerald-950 via-teal-600 to-lime-300"><span class="text-[10px] font-medium text-white bg-black/50 px-1.5 rounded">Lotus</span></button>
+                        <button data-preset="portrait" class="preset-btn rounded-lg overflow-hidden border-2 border-zinc-800 hover:border-zinc-600 aspect-square flex flex-col items-center justify-end p-1 bg-gradient-to-b from-amber-500 via-rose-600 to-violet-950"><span class="text-[10px] font-medium text-white bg-black/50 px-1.5 rounded">Muse</span></button>
+                    </div>
+                </div>
+
+                <!-- 2. Track and reveal -->
+                <div class="space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-semibold uppercase tracking-wider text-zinc-400">2. Track & reveal</label>
+                        <button id="btnLoadAudio" class="text-xs text-pink-400 hover:text-pink-300 font-medium">Load audio</button>
+                        <input id="audioUpload" type="file" accept="audio/*,.mp3,.m4a,.wav,.aac,.flac,.ogg,.opus,.aif,.aiff" class="hidden">
+                    </div>
+                    <div id="trackName" class="text-[11px] text-zinc-400 truncate">No track: the painting runs silently. Load one to paint to the music.</div>
+                    <div id="clipStartRow" class="hidden">
+                        <div class="flex justify-between text-[11px] mb-0.5"><span class="text-zinc-400">Clip starts at</span><span id="valClipStart" class="font-mono text-zinc-200">0:00</span></div>
+                        <input id="sliderClipStart" type="range" min="0" max="1" step="0.1" value="0" class="w-full">
+                    </div>
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-[11px] text-zinc-400">Clip length</span>
+                        <select id="selClipLen" class="bg-zinc-900 border border-zinc-800 rounded-md text-xs px-2 py-1">
+                            <option value="15">15 s</option><option value="30" selected>30 s</option><option value="45">45 s</option><option value="60">60 s</option><option value="full">Whole track</option>
+                        </select>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[11px] mb-0.5"><span class="text-zinc-400">Reveal at (painting complete)</span><span id="valReveal" class="font-mono text-emerald-400">0:21</span></div>
+                        <input id="sliderReveal" type="range" min="1" max="30" step="0.1" value="21" class="w-full">
+                        <div class="flex items-center justify-between mt-1">
+                            <span id="dropHint" class="text-[10px] text-zinc-500"></span>
+                            <button id="btnUseDrop" class="hidden text-[11px] text-pink-400 hover:text-pink-300 font-medium">Reveal on the drop</button>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-[11px] text-zinc-400">On the reveal</span>
+                        <select id="selFinish" class="bg-zinc-900 border border-zinc-800 rounded-md text-xs px-2 py-1">
+                            <option value="original" selected>Snap to the original</option>
+                            <option value="painting">Keep the painting</option>
+                        </select>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-[11px] mb-0.5"><span class="text-zinc-400">Audio reaction</span><span id="valReact" class="font-mono text-zinc-200">100%</span></div>
+                        <input id="sliderReact" type="range" min="0" max="200" value="100" class="w-full">
+                    </div>
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <span class="text-[11px] text-zinc-300">After the reveal: RGB split, kick zoom, dust</span>
+                        <input id="chkPostFx" type="checkbox" checked class="accent-pink-500 w-4 h-4">
+                    </label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input id="txtArtist" type="text" placeholder="Artist" class="bg-zinc-900 border border-zinc-800 rounded-md text-xs px-2 py-1.5 min-w-0">
+                        <input id="txtTitle" type="text" placeholder="Title" class="bg-zinc-900 border border-zinc-800 rounded-md text-xs px-2 py-1.5 min-w-0">
+                    </div>
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <span class="text-[11px] text-zinc-300">Show artist and title after the reveal</span>
+                        <input id="chkText" type="checkbox" checked class="accent-pink-500 w-4 h-4">
+                    </label>
+                </div>
+
+                <!-- 3. Brush style -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-xs font-semibold uppercase tracking-wider text-zinc-400">3. Brush style</label>
+                        <button id="btnMutateDNA" class="text-[11px] px-2 py-0.5 rounded-md bg-gradient-to-r from-pink-500/20 to-violet-500/20 hover:from-pink-500/30 hover:to-violet-500/30 text-pink-300 border border-pink-500/30 font-medium" title="Make up a new painting style">🎲 Mutate</button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1.5" id="modeButtons">
+                        <button data-mode="impasto" class="mode-btn flex flex-col items-start p-2 rounded-xl border border-pink-500/80 bg-pink-500/10 text-left"><span class="font-semibold text-xs text-white">🎨 Oil Impasto</span><span class="text-[10px] text-zinc-400">3D directional bristles</span></button>
+                        <button data-mode="flow" class="mode-btn flex flex-col items-start p-2 rounded-xl border border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 text-left"><span class="font-semibold text-xs text-white">🌊 Silk Flow</span><span class="text-[10px] text-zinc-400">Curl-noise ribbons</span></button>
+                        <button data-mode="watercolor" class="mode-btn flex flex-col items-start p-2 rounded-xl border border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 text-left"><span class="font-semibold text-xs text-white">💧 Watercolor</span><span class="text-[10px] text-zinc-400">Wet pigment washes</span></button>
+                        <button data-mode="pointillism" class="mode-btn flex flex-col items-start p-2 rounded-xl border border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 text-left"><span class="font-semibold text-xs text-white">🟣 Pointillism</span><span class="text-[10px] text-zinc-400">Seurat colour dots</span></button>
+                        <button data-mode="knife" class="mode-btn flex flex-col items-start p-2 rounded-xl border border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 text-left"><span class="font-semibold text-xs text-white">🔪 Palette Knife</span><span class="text-[10px] text-zinc-400">Bold sculpted slabs</span></button>
+                        <button data-mode="dna" class="mode-btn flex flex-col items-start p-2 rounded-xl border border-zinc-800 bg-zinc-900/60 hover:border-zinc-700 text-left"><span class="font-semibold text-xs text-white">🧬 Custom</span><span class="text-[10px] text-pink-400">Mix your own</span></button>
+                    </div>
+                    <div class="mt-2.5 p-3 rounded-xl bg-zinc-900/90 border border-pink-500/30 space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-semibold text-pink-400 uppercase tracking-wider">Brush DNA</span>
+                            <span id="dnaRecipeTag" class="text-[10px] font-mono text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded">Oil Impasto</span>
+                        </div>
+                        <div><div class="flex justify-between text-[11px] mb-0.5"><span class="text-zinc-400">Stroke length (dot → ribbon)</span><span id="valElongation" class="font-mono text-zinc-200">2.4x</span></div><input id="sliderElongation" type="range" min="0.5" max="8.0" step="0.1" value="2.4" class="w-full"></div>
+                        <div><div class="flex justify-between text-[11px] mb-0.5"><span class="text-zinc-400">3D relief and bristles</span><span id="valRelief" class="font-mono text-zinc-200">80%</span></div><input id="sliderRelief" type="range" min="0" max="100" value="80" class="w-full"></div>
+                        <div><div class="flex justify-between text-[11px] mb-0.5"><span class="text-zinc-400">Paint opacity (glaze → heavy)</span><span id="valOpacity" class="font-mono text-zinc-200">82%</span></div><input id="sliderOpacity" type="range" min="8" max="100" value="82" class="w-full"></div>
+                        <div><div class="flex justify-between text-[11px] mb-0.5"><span class="text-zinc-400">Faceting (organic → shards)</span><span id="valFacet" class="font-mono text-zinc-200">10%</span></div><input id="sliderFacet" type="range" min="0" max="100" value="10" class="w-full"></div>
+                    </div>
+                </div>
+
+                <!-- 4. Format -->
+                <div>
+                    <label class="text-xs font-semibold uppercase tracking-wider text-zinc-400 block mb-2">4. Format</label>
+                    <div class="grid grid-cols-3 gap-2" id="aspectButtons">
+                        <button data-aspect="9:16" class="aspect-btn py-2 px-2 rounded-lg border border-pink-500 bg-pink-500/10 text-xs font-medium text-white flex flex-col items-center"><span>9:16</span><span class="text-[10px] text-zinc-400">TikTok / Reels</span></button>
+                        <button data-aspect="1:1" class="aspect-btn py-2 px-2 rounded-lg border border-zinc-800 bg-zinc-900 text-xs font-medium text-zinc-300 hover:border-zinc-700 flex flex-col items-center"><span>1:1</span><span class="text-[10px] text-zinc-400">Square post</span></button>
+                        <button data-aspect="16:9" class="aspect-btn py-2 px-2 rounded-lg border border-zinc-800 bg-zinc-900 text-xs font-medium text-zinc-300 hover:border-zinc-700 flex flex-col items-center"><span>16:9</span><span class="text-[10px] text-zinc-400">YouTube</span></button>
+                    </div>
+                </div>
+
+                <!-- 5. Brush dynamics -->
+                <div class="space-y-3 pt-2 border-t border-zinc-800/80">
+                    <label class="text-xs font-semibold uppercase tracking-wider text-zinc-400 block">5. Brush dynamics</label>
+                    <div><div class="flex justify-between text-xs mb-1"><span class="text-zinc-300">Detail (strokes to finish)</span><span id="valTargetStrokes" class="font-mono text-pink-400">12,000</span></div><input id="sliderTargetStrokes" type="range" min="3000" max="30000" step="1000" value="12000" class="w-full"></div>
+                    <div><div class="flex justify-between text-xs mb-1"><span class="text-zinc-300">Brush size</span><span id="valScale" class="font-mono text-pink-400">1.0x</span></div><input id="sliderScale" type="range" min="0.3" max="2.5" step="0.1" value="1.0" class="w-full"></div>
+                    <div><div class="flex justify-between text-xs mb-1"><span class="text-zinc-300">Swirl and chaos</span><span id="valChaos" class="font-mono text-pink-400">40%</span></div><input id="sliderChaos" type="range" min="0" max="100" value="40" class="w-full"></div>
+                    <div><div class="flex justify-between text-xs mb-1"><span class="text-zinc-300">Colour vibrance</span><span id="valVibrance" class="font-mono text-pink-400">25%</span></div><input id="sliderVibrance" type="range" min="0" max="100" value="25" class="w-full"></div>
+                    <div class="flex items-center justify-between pt-1">
+                        <span class="text-xs text-zinc-300">Canvas tone</span>
+                        <div class="flex items-center gap-1.5" id="bgToneButtons">
+                            <button data-bg="#09090b" class="w-6 h-6 rounded-full bg-zinc-950 border-2 border-pink-500" title="Obsidian"></button>
+                            <button data-bg="#1e1b18" class="w-6 h-6 rounded-full bg-[#1e1b18] border-2 border-zinc-700" title="Espresso"></button>
+                            <button data-bg="#f5f0e6" class="w-6 h-6 rounded-full bg-[#f5f0e6] border-2 border-zinc-700" title="Linen"></button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-3 rounded-xl bg-zinc-900/90 border border-zinc-800/90 text-[11px] text-zinc-400 leading-relaxed">
+                    <span class="text-pink-400 font-semibold">Tip:</span> kicks paint bigger bursts, snares throw splatters, hi-hats speed up the swirl. The preview is exactly what the MP4 will be.
+                </div>
+                <div id="status" class="text-[11px] text-zinc-300 min-h-[16px] break-words"></div>
+            </div>
+        </aside>
+
+        <main class="flex-1 stage-backdrop flex flex-col items-center justify-between p-4 lg:p-6 overflow-hidden relative">
+            <div class="w-full max-w-2xl flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-zinc-900/85 border border-zinc-800/90 backdrop-blur-md z-10 text-xs">
+                <div class="flex items-center gap-3 min-w-0">
+                    <span id="statusDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+                    <span id="stageLabel" class="font-medium text-zinc-200 truncate">Pass 1: Broad underpainting</span>
+                    <span class="text-zinc-600 hidden sm:inline">|</span>
+                    <span class="font-mono text-zinc-400 hidden sm:inline">Strokes: <span id="strokeCounter" class="text-white font-semibold">0</span></span>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <span id="progressPercent" class="font-mono text-pink-400 font-semibold">0%</span>
+                    <div class="w-20 sm:w-32 h-2 bg-zinc-800 rounded-full overflow-hidden"><div id="progressBar" class="h-full bg-gradient-to-r from-pink-500 to-violet-500 w-0"></div></div>
+                </div>
+            </div>
+
+            <div id="canvasViewport" class="flex-1 w-full flex items-center justify-center overflow-hidden my-2 relative">
+                <div id="canvasFrame" class="relative rounded-xl overflow-hidden shadow-2xl shadow-black/90 ring-1 ring-white/15 flex items-center justify-center bg-zinc-950">
+                    <canvas id="paintCanvas" class="block"></canvas>
+                </div>
+            </div>
+
+            <div class="w-full max-w-xl flex flex-col gap-2 px-4 py-2.5 rounded-2xl bg-zinc-900/90 border border-zinc-800 backdrop-blur-md z-10">
+                <div class="flex items-center gap-2 text-[11px] font-mono text-zinc-400">
+                    <span id="timeNow">0:00</span>
+                    <input id="seek" type="range" min="0" max="1000" value="0" class="flex-1">
+                    <span id="timeTotal">0:30</span>
+                </div>
+                <div class="flex items-center justify-center gap-2.5">
+                    <button id="btnPlayPause" class="px-4 py-2 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-semibold text-xs shadow-lg shadow-pink-600/25 transition active:scale-95">▶ Play</button>
+                    <button id="btnRestart" class="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium text-xs border border-zinc-700 transition active:scale-95">Restart</button>
+                </div>
+            </div>
+        </main>
+    </div>
+    <div id="exportCanvasHost"></div>
+
+    <script>
+    // ChromaFlow: paints a cover image as a time-lapse that follows the music and completes on the reveal (by default
+    // the track's first drop), then holds the finished image with post effects. Everything is a function of the clip
+    // time: strokes are scheduled per frame from the track's analysis and drawn with a seeded random generator, so
+    // the live preview and the exported MP4 (js/export.js) paint exactly the same strokes.
+    const EXPORT_JOB = new URLSearchParams(location.search).get('export');
+    const FPS = 30;
+    const PAINT_SIZES = { '9:16': [720, 1280], '1:1': [960, 960], '16:9': [1280, 720] };
+    const EXPORT_ASPECT = { '9:16': 'portrait', '1:1': 'square', '16:9': 'landscape' };
+
+    // ---- Noise ----
+    class ProceduralMath {
+        constructor(seed = 1337) {
+            this.perm = new Uint8Array(512);
+            let s = seed;
+            const p = new Uint8Array(256);
+            for (let i = 0; i < 256; i++) p[i] = i;
+            for (let i = 255; i > 0; i--) {
+                s = (s * 16807) % 2147483647;
+                const j = s % (i + 1);
+                const tmp = p[i]; p[i] = p[j]; p[j] = tmp;
+            }
+            for (let i = 0; i < 512; i++) this.perm[i] = p[i & 255];
+        }
+        fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+        lerp(t, a, b) { return a + t * (b - a); }
+        grad(hash, x, y) {
+            const h = hash & 7, u = h < 4 ? x : y, v = h < 4 ? y : x;
+            return ((h & 1) ? -u : u) + ((h & 2) ? -2.0 * v : 2.0 * v);
+        }
+        noise2D(x, y) {
+            const X = Math.floor(x) & 255, Y = Math.floor(y) & 255;
+            x -= Math.floor(x); y -= Math.floor(y);
+            const u = this.fade(x), v = this.fade(y);
+            const A = this.perm[X] + Y, B = this.perm[X + 1] + Y;
+            return this.lerp(v,
+                this.lerp(u, this.grad(this.perm[A], x, y), this.grad(this.perm[B], x - 1, y)),
+                this.lerp(u, this.grad(this.perm[A + 1], x, y - 1), this.grad(this.perm[B + 1], x - 1, y - 1)));
+        }
+    }
+    const NOISE = new ProceduralMath(42);
+    function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+    const clamp01 = x => Math.max(0, Math.min(1, x));
+
+    // ---- Built-in cover art, drawn at any size ----
+    function drawPreset(ctx, w, h, name) {
+        ctx.clearRect(0, 0, w, h);
+        if (name === 'sunset') {
+            const sky = ctx.createLinearGradient(0, 0, 0, h * 0.75);
+            sky.addColorStop(0, '#0f0728'); sky.addColorStop(0.35, '#4c1d95'); sky.addColorStop(0.68, '#db2777'); sky.addColorStop(1, '#f59e0b');
+            ctx.fillStyle = sky; ctx.fillRect(0, 0, w, h);
+            const sun = ctx.createRadialGradient(w * 0.5, h * 0.42, w * 0.02, w * 0.5, h * 0.42, w * 0.28);
+            sun.addColorStop(0, '#fef08a'); sun.addColorStop(0.5, '#fb923c'); sun.addColorStop(1, 'rgba(244, 63, 94, 0)');
+            ctx.fillStyle = sun; ctx.beginPath(); ctx.arc(w * 0.5, h * 0.42, w * 0.28, 0, Math.PI * 2); ctx.fill();
+            [{ y: 0.56, amp: 0.08, color: '#3b0764', seed: 1.2 }, { y: 0.65, amp: 0.07, color: '#1e1b4b', seed: 2.5 }, { y: 0.74, amp: 0.05, color: '#090d16', seed: 4.1 }].forEach(r => {
+                ctx.fillStyle = r.color; ctx.beginPath(); ctx.moveTo(0, h);
+                for (let x = 0; x <= w; x += w / 60) {
+                    const u = x / w * 720;   // the ridge shapes are designed on a 720-wide canvas
+                    ctx.lineTo(x, h * r.y + NOISE.noise2D(u * 0.004 + r.seed, r.seed) * h * r.amp + NOISE.noise2D(u * 0.015, r.seed * 2) * h * r.amp * 0.35);
+                }
+                ctx.lineTo(w, h); ctx.closePath(); ctx.fill();
+            });
+            const water = ctx.createLinearGradient(0, h * 0.74, 0, h);
+            water.addColorStop(0, '#be185d'); water.addColorStop(0.5, '#311042'); water.addColorStop(1, '#09090b');
+            ctx.fillStyle = water; ctx.fillRect(0, h * 0.74, w, h * 0.26);
+            ctx.fillStyle = '#fde047';
+            for (let i = 0; i < 45; i++) {
+                const ry = h * 0.75 + (i / 45) * (h * 0.23), rw = (1 - (i / 45) * 0.6) * w * 0.35;
+                ctx.fillRect(w * 0.5 - rw / 2 + Math.sin(i * 1.7) * w * 0.025, ry, rw, Math.max(2, h * 0.0024));
+            }
+        } else if (name === 'cyber') {
+            const bg = ctx.createLinearGradient(0, 0, w, h);
+            bg.addColorStop(0, '#020617'); bg.addColorStop(0.5, '#1e1b4b'); bg.addColorStop(1, '#0f172a');
+            ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+            const colors = ['#06b6d4', '#ec4899', '#8b5cf6', '#f43f5e', '#10b981'];
+            for (let i = 0; i < 12; i++) {
+                const cx = (0.15 + 0.7 * ((i * 37) % 100) / 100) * w, cy = (0.15 + 0.65 * ((i * 53) % 100) / 100) * h, rad = w * (0.12 + (i % 4) * 0.06);
+                const g = ctx.createRadialGradient(cx, cy, 5, cx, cy, rad);
+                g.addColorStop(0, colors[i % colors.length]); g.addColorStop(1, 'transparent');
+                ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.fill();
+            }
+            const k = w / 720;
+            for (let i = 0; i < 18; i++) {
+                const bw = w * (0.06 + (i % 3) * 0.04), bh = h * (0.35 + ((i * 29) % 50) / 100), bx = (i / 18) * w, by = h - bh;
+                ctx.fillStyle = '#090d16'; ctx.fillRect(bx, by, bw - 4 * k, bh);
+                ctx.fillStyle = colors[i % colors.length];
+                for (let wy = by + 12 * k, r = 0; wy < h - 20 * k; wy += 18 * k, r++)
+                    for (let wx = bx + 6 * k, c = 0; wx < bx + bw - 12 * k; wx += 12 * k, c++)
+                        if (((c * 7 + r * 13 + i) % 7) > 2) ctx.fillRect(wx, wy, 6 * k, 10 * k);
+            }
+        } else if (name === 'botanical') {
+            const pond = ctx.createRadialGradient(w * 0.5, h * 0.5, w * 0.05, w * 0.5, h * 0.5, Math.max(w, h) * 0.7);
+            pond.addColorStop(0, '#115e59'); pond.addColorStop(0.6, '#064e3b'); pond.addColorStop(1, '#022c22');
+            ctx.fillStyle = pond; ctx.fillRect(0, 0, w, h);
+            [{ x: 0.22, y: 0.25, r: 0.16 }, { x: 0.78, y: 0.28, r: 0.14 }, { x: 0.20, y: 0.76, r: 0.18 }, { x: 0.76, y: 0.74, r: 0.15 }].forEach(p => {
+                ctx.fillStyle = '#15803d'; ctx.beginPath(); ctx.arc(p.x * w, p.y * h, p.r * Math.min(w, h), 0.2, Math.PI * 1.9);
+                ctx.lineTo(p.x * w, p.y * h); ctx.closePath(); ctx.fill();
+            });
+            const cx = w * 0.5, cy = h * 0.5, baseR = Math.min(w, h) * 0.34;
+            for (let ring = 3; ring >= 0; ring--) {
+                const count = 12 + ring * 2, len = baseR * (0.45 + ring * 0.18), wid = baseR * (0.16 + ring * 0.03);
+                for (let i = 0; i < count; i++) {
+                    ctx.save(); ctx.translate(cx, cy); ctx.rotate((i / count) * Math.PI * 2 + ring * 0.25);
+                    const pg = ctx.createLinearGradient(0, 0, len, 0);
+                    pg.addColorStop(0, '#fef08a'); pg.addColorStop(0.35, '#f472b6'); pg.addColorStop(0.85, '#db2777'); pg.addColorStop(1, '#FDF2F8');
+                    ctx.fillStyle = pg; ctx.beginPath(); ctx.moveTo(0, 0);
+                    ctx.quadraticCurveTo(len * 0.5, -wid, len, 0); ctx.quadraticCurveTo(len * 0.5, wid, 0, 0); ctx.fill(); ctx.restore();
+                }
+            }
+            ctx.fillStyle = '#facc15'; ctx.beginPath(); ctx.arc(cx, cy, baseR * 0.14, 0, Math.PI * 2); ctx.fill();
+        } else {
+            const bg = ctx.createLinearGradient(0, 0, w, h);
+            bg.addColorStop(0, '#4c1d95'); bg.addColorStop(0.5, '#be185d'); bg.addColorStop(1, '#f59e0b');
+            ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+            const cx = w * 0.5, cy = h * 0.48, s = Math.min(w, h);
+            ctx.strokeStyle = '#fde047'; ctx.lineWidth = s * 0.025; ctx.beginPath(); ctx.arc(cx, cy - s * 0.05, s * 0.34, 0, Math.PI * 2); ctx.stroke();
+            ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(cx, cy - s * 0.04, s * 0.28, 0, Math.PI * 2); ctx.fill();
+            ctx.fillRect(cx - s * 0.28, cy - s * 0.04, s * 0.56, s * 0.45);
+            const face = ctx.createLinearGradient(cx - s * 0.16, cy - s * 0.2, cx + s * 0.16, cy + s * 0.2);
+            face.addColorStop(0, '#fb7185'); face.addColorStop(0.5, '#fdba74'); face.addColorStop(1, '#a855f7');
+            ctx.fillStyle = face; ctx.beginPath(); ctx.ellipse(cx, cy, s * 0.17, s * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#09090b'; ctx.beginPath();
+            ctx.ellipse(cx - s * 0.065, cy - s * 0.03, s * 0.035, s * 0.016, -0.1, 0, Math.PI * 2);
+            ctx.ellipse(cx + s * 0.065, cy - s * 0.03, s * 0.035, s * 0.016, 0.1, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#22d3ee'; ctx.beginPath();
+            ctx.arc(cx - s * 0.065, cy - s * 0.03, s * 0.012, 0, Math.PI * 2); ctx.arc(cx + s * 0.065, cy - s * 0.03, s * 0.012, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#e11d48'; ctx.beginPath(); ctx.ellipse(cx, cy + s * 0.1, s * 0.05, s * 0.022, 0, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+    function drawCover(ctx, w, h, img) {
+        const r = Math.max(w / img.width, h / img.height);
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(img, (w - img.width * r) / 2, (h - img.height * r) / 2, img.width * r, img.height * r);
+    }
+
+    // ---- Track analysis ----
+    // Per video frame: a kick envelope (bass onsets, 30-120 Hz), snare hits (150 Hz-4 kHz onsets), the hi-hat level
+    // (6-16 kHz) and overall energy, each against its own recent peak. The same function feeds the preview and the
+    // export, so both react identically.
+    async function analyseFeatures(audio) {
+        const sr = audio.sampleRate, N = 2048, len = audio.length;
+        const mono = new Float32Array(len);
+        for (let c = 0; c < audio.numberOfChannels; c++) { const ch = audio.getChannelData(c); for (let i = 0; i < len; i++) mono[i] += ch[i] / audio.numberOfChannels; }
+        const win = new Float32Array(N);
+        for (let i = 0; i < N; i++) win[i] = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / N) + 0.08 * Math.cos(4 * Math.PI * i / N);
+        const fft = KinetixDirector.makeFft(N), re = new Float64Array(N), im = new Float64Array(N);
+        const binHz = sr / N, band = (lo, hi) => [Math.max(1, Math.floor(lo / binHz)), Math.min(N / 2 - 1, Math.ceil(hi / binHz))];
+        const bands = [band(30, 120), band(150, 4000), band(6000, 16000)];
+        const count = Math.ceil(audio.duration * FPS);
+        const out = { count, kick: new Float32Array(count), snare: new Uint8Array(count), high: new Float32Array(count), energy: new Float32Array(count) };
+        const smooth = new Float64Array(N / 2), keep = Math.pow(0.5, 60 / FPS), dt = 1 / FPS;
+        const peak = [-45, -45, -45], level = [0, 0, 0], slow = [-100, -100], since = [1, 1];
+        let kick = 0, energy = 0;
+        for (let f = 0; f < count; f++) {
+            const start = Math.round((f / FPS) * sr) - N / 2;
+            for (let i = 0; i < N; i++) { const at = start + i; re[i] = (at >= 0 && at < len ? mono[at] : 0) * win[i]; im[i] = 0; }
+            fft(re, im);
+            for (let k = 0; k < N / 2; k++) smooth[k] = keep * smooth[k] + (1 - keep) * Math.hypot(re[k], im[k]) / N;
+            const db = bands.map(([a, b]) => { let s = 0; for (let k = a; k <= b; k++) s += Math.max(-100, Math.min(0, 20 * Math.log10(smooth[k] + 1e-10))); return s / (b - a + 1); });
+            for (let i = 0; i < 3; i++) {
+                peak[i] = Math.max(db[i], peak[i] - dt * 0.4);
+                const x = clamp01((db[i] - (peak[i] - 22)) / 22);
+                level[i] += (x - level[i]) * (1 - Math.exp(-dt / (x > level[i] ? 0.03 : 0.18)));
+            }
+            const hit = [false, false];
+            for (let i = 0; i < 2; i++) {
+                const rise = db[i] - slow[i];
+                slow[i] += (db[i] - slow[i]) * (1 - Math.exp(-dt / 0.25));
+                since[i] += dt;
+                if (rise > 3 && level[i] > 0.5 && since[i] > 0.2) { hit[i] = true; since[i] = 0; }
+            }
+            if (hit[0]) kick = 1;
+            kick *= Math.exp(-dt / 0.16);
+            energy += (level[0] * 0.5 + level[1] * 0.3 + level[2] * 0.2 - energy) * (1 - Math.exp(-dt / 0.5));
+            out.kick[f] = kick; out.snare[f] = hit[1] ? 1 : 0; out.high[f] = level[2]; out.energy[f] = energy;
+            if (f % 400 === 0) await new Promise(r => { const ch = new MessageChannel(); ch.port1.onmessage = r; ch.port2.postMessage(0); });   // not throttled in background tabs
+        }
+        return out;
+    }
+
+    // ---- The painting ----
+    class Painter {
+        constructor(outCanvas) {
+            this.out = outCanvas;
+            this.octx = outCanvas.getContext('2d', { alpha: false });
+            this.paint = document.createElement('canvas');
+            this.pctx = this.paint.getContext('2d', { alpha: false });
+            this.ref = document.createElement('canvas');
+            this.rctx = this.ref.getContext('2d', { willReadFrequently: true });
+            this.crisp = document.createElement('canvas');   // the cover at output size, for the reveal
+            this.p = null;
+            this.features = null;
+        }
+
+        // p: { aspect, preset, image (an <img> or null), mode, dna, brushScale, chaos, vibrance, bgColor, target, seed,
+        //      clipStart, clipLen, reveal, finish, react, postFx, showText, artist, title }
+        configure(p, features) {
+            this.p = p;
+            this.features = features;
+            const [pw, ph] = PAINT_SIZES[p.aspect];
+            this.paint.width = this.ref.width = pw;
+            this.paint.height = this.ref.height = ph;
+            this.W = pw; this.H = ph;
+            this.crisp.width = this.out.width; this.crisp.height = this.out.height;
+            const cctx = this.crisp.getContext('2d');
+            if (p.image) { drawCover(this.rctx, pw, ph, p.image); drawCover(cctx, this.out.width, this.out.height, p.image); }
+            else { drawPreset(this.rctx, pw, ph, p.preset); drawPreset(cctx, this.out.width, this.out.height, p.preset); }
+            this.analyseReference();
+            this.frames = Math.max(1, Math.round(p.clipLen * FPS));
+            this.revealFrame = Math.max(1, Math.min(this.frames, Math.round(p.reveal * FPS)));
+            this.startFrame = Math.round(p.clipStart * FPS);
+            this.buildSchedule();
+            this.reset();
+        }
+
+        // Sobel edges of the reference: contour angles and strength, so brushes follow the shapes.
+        analyseReference() {
+            const w = this.W, h = this.H;
+            this.src = this.rctx.getImageData(0, 0, w, h).data;
+            this.edgeMag = new Float32Array(w * h);
+            this.edgeAng = new Float32Array(w * h);
+            const lum = new Float32Array(w * h);
+            for (let i = 0; i < w * h; i++) lum[i] = 0.299 * this.src[i * 4] + 0.587 * this.src[i * 4 + 1] + 0.114 * this.src[i * 4 + 2];
+            for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+                const i = y * w + x;
+                const gx = -lum[i - w - 1] + lum[i - w + 1] - 2 * lum[i - 1] + 2 * lum[i + 1] - lum[i + w - 1] + lum[i + w + 1];
+                const gy = -lum[i - w - 1] - 2 * lum[i - w] - lum[i - w + 1] + lum[i + w - 1] + 2 * lum[i + w] + lum[i + w + 1];
+                this.edgeMag[i] = Math.min(1, Math.sqrt(gx * gx + gy * gy) / 400);
+                this.edgeAng[i] = Math.atan2(gy, gx) + Math.PI * 0.5;
+            }
+        }
+
+        fx(f) {
+            const F = this.features, g = this.startFrame + f;
+            if (!F || g < 0 || g >= F.count) return { kick: 0, snare: 0, high: 0, energy: 0 };
+            return { kick: F.kick[g], snare: F.snare[g], high: F.high[g], energy: F.energy[g] };
+        }
+
+        // Cumulative strokes after each frame: more on loud stretches and kicks, landing exactly on the target at the
+        // reveal.
+        buildSchedule() {
+            const R = this.revealFrame, react = this.p.react, w = new Float64Array(R);
+            let sum = 0;
+            for (let f = 0; f < R; f++) { const x = this.fx(f); w[f] = 1 + react * (1.2 * x.energy + 1.5 * x.kick); sum += w[f]; }
+            this.schedule = new Int32Array(this.frames);
+            let acc = 0;
+            for (let f = 0; f < this.frames; f++) {
+                if (f < R) acc += w[f];
+                this.schedule[f] = f < R - 1 ? Math.round(this.p.target * acc / sum) : this.p.target;
+            }
+        }
+
+        reset() {
+            this.rand = mulberry32(this.p.seed);
+            this.strokeCount = 0;
+            this.frame = -1;
+            this.layers = null;
+            this.pctx.fillStyle = this.p.bgColor;
+            this.pctx.fillRect(0, 0, this.W, this.H);
+            this.particles = [];
+            for (let i = 0; i < 180; i++) this.particles.push(this.newParticle());
+        }
+
+        advanceTo(f) {
+            f = Math.min(f, this.frames - 1);
+            for (let i = this.frame + 1; i <= f; i++) this.paintFrame(i);
+            if (f > this.frame) this.frame = f;
+        }
+
+        paintFrame(f) {
+            if (f >= this.revealFrame) return;
+            const n = this.schedule[f] - (f > 0 ? this.schedule[f - 1] : 0);
+            const x = this.fx(f), react = this.p.react;
+            this.scaleNow = this.p.brushScale * (1 + 0.35 * react * x.kick);
+            this.chaosNow = clamp01(this.p.chaos + 0.35 * react * x.high);
+            for (let i = 0; i < n; i++) this.paintStroke(i);
+            if (x.snare && react > 0) this.splatter(Math.round(10 + 10 * react));
+        }
+
+        sample(x, y) {
+            const cx = Math.max(0, Math.min(this.W - 1, x | 0)), cy = Math.max(0, Math.min(this.H - 1, y | 0)), i = (cy * this.W + cx) * 4;
+            let r = this.src[i], g = this.src[i + 1], b = this.src[i + 2];
+            const v = this.p.vibrance;
+            if (v > 0) {
+                const avg = (r + g + b) / 3, boost = 1 + v * 0.8, jitter = (this.rand() - 0.5) * v * 42;
+                r = Math.max(0, Math.min(255, avg + (r - avg) * boost + jitter));
+                g = Math.max(0, Math.min(255, avg + (g - avg) * boost + jitter));
+                b = Math.max(0, Math.min(255, avg + (b - avg) * boost + jitter));
+            }
+            return { r: Math.round(r), g: Math.round(g), b: Math.round(b) };
+        }
+
+        newParticle(x, y) {
+            if (x === undefined) { x = this.rand() * this.W; y = this.rand() * this.H; }
+            return { x, y, age: 0, maxAge: 25 + Math.floor(this.rand() * 55), color: this.sample(x, y), size: (1.5 + this.rand() * 3.5) * this.p.brushScale };
+        }
+
+        // One stroke: early strokes are broad and anywhere; later ones favour the sharpest edges, so detail arrives last.
+        paintStroke(i) {
+            const progress = Math.min(1, this.strokeCount / this.p.target), W = this.W, H = this.H;
+            let tx, ty;
+            if (progress > 0.3 && this.rand() < 0.72) {
+                let bx = this.rand() * W, by = this.rand() * H, best = -1;
+                const tests = progress > 0.75 ? 6 : 3;
+                for (let k = 0; k < tests; k++) {
+                    const rx = Math.floor(this.rand() * W), ry = Math.floor(this.rand() * H), m = this.edgeMag[ry * W + rx];
+                    if (m > best) { best = m; bx = rx; by = ry; }
+                }
+                tx = bx; ty = by;
+            } else { tx = this.rand() * W; ty = this.rand() * H; }
+            tx = Math.max(0, Math.min(W - 1, tx)); ty = Math.max(0, Math.min(H - 1, ty));
+            if (this.p.mode === 'flow') this.flowStep(i, progress);
+            else if (this.p.mode === 'watercolor') this.watercolor(tx, ty, progress);
+            else this.dnaBrush(tx, ty, progress);
+            this.strokeCount++;
+        }
+
+        // Impasto, pointillism, palette knife and custom mixes: one brush shaped by the DNA sliders.
+        dnaBrush(x, y, progress, sizeMul = 1) {
+            const ctx = this.pctx, dna = this.p.dna, idx = Math.floor(y) * this.W + Math.floor(x);
+            const edgeMag = this.edgeMag[idx] || 0, edgeAng = this.edgeAng[idx] || 0;
+            const pass = Math.max(0.08, Math.pow(1 - progress * 0.88, 1.65));
+            const baseR = (38 * pass * (1 - edgeMag * 0.6) + 2.2) * this.scaleNow * sizeMul, len = baseR * dna.elongation;
+            const noiseAng = NOISE.noise2D(x * 0.004, y * 0.004) * Math.PI * 2;
+            const angle = edgeAng * (1 - this.chaosNow * 0.7) + noiseAng * (this.chaosNow * 0.7);
+            const col = this.sample(x, y), alpha = dna.opacity;
+            ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+            if (dna.faceting > 0.55) {
+                const bevel = Math.round(dna.relief * 28);
+                ctx.fillStyle = `rgba(${col.r},${col.g},${col.b},${alpha})`;
+                ctx.beginPath(); ctx.moveTo(-len * 0.5, -baseR * 0.45); ctx.lineTo(len * 0.4, -baseR * 0.5); ctx.lineTo(len * 0.55, baseR * 0.35); ctx.lineTo(-len * 0.35, baseR * 0.5); ctx.closePath(); ctx.fill();
+                if (dna.relief > 0.25) { ctx.strokeStyle = `rgba(${Math.min(255, col.r + bevel)},${Math.min(255, col.g + bevel)},${Math.min(255, col.b + bevel)},${alpha})`; ctx.lineWidth = Math.max(1, baseR * 0.18); ctx.stroke(); }
+            } else if (dna.elongation < 0.85) {
+                ctx.fillStyle = `rgba(${col.r},${col.g},${col.b},${alpha})`;
+                ctx.beginPath(); ctx.arc(0, 0, baseR * 0.65, 0, Math.PI * 2); ctx.fill();
+                if (dna.relief > 0.3) { ctx.fillStyle = `rgba(${Math.min(255, col.r + 30)},${Math.min(255, col.g + 30)},${Math.min(255, col.b + 30)},${alpha * 0.7})`; ctx.beginPath(); ctx.arc(-baseR * 0.18, -baseR * 0.18, baseR * 0.25, 0, Math.PI * 2); ctx.fill(); }
+            } else {
+                const bristles = Math.max(1, Math.round(1 + dna.relief * 4)), arch = (this.rand() - 0.5) * baseR * (0.3 + this.chaosNow);
+                for (let b = 0; b < bristles; b++) {
+                    const off = bristles === 1 ? 0 : (b - (bristles - 1) / 2) * (baseR * 0.34);
+                    const light = b === 0 ? Math.round(28 * dna.relief) : (b === bristles - 1 ? -Math.round(24 * dna.relief) : 0);
+                    ctx.strokeStyle = `rgba(${Math.max(0, Math.min(255, col.r + light))},${Math.max(0, Math.min(255, col.g + light))},${Math.max(0, Math.min(255, col.b + light))},${alpha})`;
+                    ctx.lineWidth = Math.max(1.1, (baseR / bristles) * 1.45);
+                    ctx.lineCap = dna.faceting > 0.3 ? 'square' : 'round';
+                    ctx.beginPath(); ctx.moveTo(-len * 0.5, off); ctx.quadraticCurveTo(0, off + arch, len * 0.5, off); ctx.stroke();
+                }
+            }
+            ctx.restore();
+        }
+
+        flowStep(index, progress) {
+            const ctx = this.pctx, k = index % this.particles.length, p = this.particles[k];
+            const ix = Math.max(0, Math.min(this.W - 1, Math.floor(p.x))), iy = Math.max(0, Math.min(this.H - 1, Math.floor(p.y)));
+            const edgeAng = this.edgeAng[iy * this.W + ix] || 0, ns = 0.0035 + this.chaosNow * 0.004;
+            const a = edgeAng * (1 - this.chaosNow * 0.65) + NOISE.noise2D(p.x * ns, p.y * ns) * Math.PI * 4 * (0.35 + this.chaosNow * 0.65);
+            const speed = 3.5 + (1 - progress * 0.5) * 4.5;
+            const nx = p.x + Math.cos(a) * speed, ny = p.y + Math.sin(a) * speed, t = this.sample(p.x, p.y);
+            p.color.r = Math.round(p.color.r * 0.65 + t.r * 0.35); p.color.g = Math.round(p.color.g * 0.65 + t.g * 0.35); p.color.b = Math.round(p.color.b * 0.65 + t.b * 0.35);
+            ctx.strokeStyle = `rgba(${p.color.r},${p.color.g},${p.color.b},0.72)`;
+            ctx.lineWidth = Math.max(0.8, p.size * (this.scaleNow / this.p.brushScale) * (1 - progress * 0.45));
+            ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(nx, ny); ctx.stroke();
+            p.x = nx; p.y = ny; p.age++;
+            if (p.age >= p.maxAge || p.x < 0 || p.x >= this.W || p.y < 0 || p.y >= this.H) this.particles[k] = this.newParticle();
+        }
+
+        watercolor(x, y, progress) {
+            const ctx = this.pctx, edgeMag = this.edgeMag[Math.floor(y) * this.W + Math.floor(x)] || 0;
+            const radius = (56 * Math.max(0.15, Math.pow(1 - progress * 0.82, 1.5)) * (1 - edgeMag * 0.5) + 4) * this.scaleNow, col = this.sample(x, y);
+            ctx.save(); ctx.translate(x, y);
+            for (let l = 0; l < 2; l++) {
+                ctx.beginPath();
+                for (let s = 0; s <= 10; s++) {
+                    const a = (s / 10) * Math.PI * 2, r = radius * (1 + (this.rand() - 0.5) * (0.45 + this.chaosNow * 0.4)) * (l === 0 ? 1 : 0.72);
+                    if (s === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r); else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+                }
+                ctx.closePath();
+                ctx.fillStyle = `rgba(${col.r},${col.g},${col.b},0.14)`; ctx.fill();
+                ctx.strokeStyle = `rgba(${col.r},${col.g},${col.b},0.22)`; ctx.lineWidth = 1.2; ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // A snare hit: a spray of small fast strokes thrown outward from a point, in the cover's own colours.
+        splatter(n) {
+            const ox = this.W * (0.25 + this.rand() * 0.5), oy = this.H * (0.25 + this.rand() * 0.5), ctx = this.pctx, s = Math.min(this.W, this.H);
+            for (let i = 0; i < n; i++) {
+                const a = this.rand() * Math.PI * 2, d = s * (0.04 + this.rand() * 0.32), x = ox + Math.cos(a) * d, y = oy + Math.sin(a) * d;
+                if (x < 0 || y < 0 || x >= this.W || y >= this.H) continue;
+                const col = this.sample(x, y), len = s * (0.012 + this.rand() * 0.03), wdt = Math.max(1, s * (0.002 + this.rand() * 0.005));
+                ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+                ctx.strokeStyle = `rgba(${col.r},${col.g},${col.b},0.9)`; ctx.lineWidth = wdt; ctx.lineCap = 'round';
+                ctx.beginPath(); ctx.moveTo(-len * 0.5, 0); ctx.lineTo(len * 0.5, 0); ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        // The frame on screen: the painting until the reveal; then the finished cover (or the painting) with a flash,
+        // and optionally RGB split and zoom on kicks, drifting dust, and the artist and title.
+        compose(f) {
+            const g = this.octx, W = this.out.width, H = this.out.height, p = this.p;
+            const t = f / FPS, tr = this.revealFrame / FPS, after = f >= this.revealFrame;
+            g.setTransform(1, 0, 0, 1, 0, 0);
+            g.globalCompositeOperation = 'source-over';
+            g.globalAlpha = 1;
+            const base = after && p.finish === 'original' ? this.crisp : this.paint;
+            if (after && p.postFx) {
+                const x = this.fx(f), kick = x.kick * p.react;
+                if (!this.layers || this.layers.base !== base) this.layers = this.splitChannels(base, W, H);
+                const z = 1 + 0.035 * kick, shift = (2 + 9 * kick) * W / 1080;
+                g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+                g.setTransform(z, 0, 0, z, (1 - z) * W / 2, (1 - z) * H / 2);
+                g.globalCompositeOperation = 'lighter';
+                g.drawImage(this.layers.r, -shift, 0, W, H);
+                g.drawImage(this.layers.g, 0, 0, W, H);
+                g.drawImage(this.layers.b, shift, 0, W, H);
+                g.setTransform(1, 0, 0, 1, 0, 0);
+                this.dust(g, W, H, t - tr);
+                g.globalCompositeOperation = 'source-over';
+            } else {
+                g.drawImage(base, 0, 0, W, H);
+            }
+            if (after) {
+                const flash = Math.exp(-(t - tr) / 0.22) * 0.85;
+                if (flash > 0.01) { g.fillStyle = `rgba(255,255,255,${flash})`; g.fillRect(0, 0, W, H); }
+                if (p.showText && (p.artist || p.title)) this.text(g, W, H, clamp01((t - tr - 0.4) / 0.6));
+            }
+        }
+
+        splitChannels(base, W, H) {
+            const c = document.createElement('canvas'); c.width = W; c.height = H;
+            const cx = c.getContext('2d', { willReadFrequently: true });
+            cx.drawImage(base, 0, 0, W, H);
+            const src = cx.getImageData(0, 0, W, H);
+            const make = ch => {
+                const d = new ImageData(W, H), o = d.data, s = src.data;
+                for (let i = 0; i < s.length; i += 4) { o[i + ch] = s[i + ch]; o[i + 3] = 255; }
+                const k = document.createElement('canvas'); k.width = W; k.height = H;
+                k.getContext('2d').putImageData(d, 0, 0);
+                return k;
+            };
+            return { base, r: make(0), g: make(1), b: make(2) };
+        }
+
+        dust(g, W, H, since) {
+            const r = mulberry32(this.p.seed + 7), s = Math.min(W, H), fade = clamp01(since / 1.2);
+            g.fillStyle = '#ffe9c7';
+            for (let i = 0; i < 80; i++) {
+                const x0 = r(), y0 = r(), vx = (r() - 0.5) * 0.02, vy = 0.01 + r() * 0.03, size = (0.6 + r() * 2.2) * s / 1080, ph = r() * 6.28;
+                const x = (((x0 + vx * since) % 1) + 1) % 1, y = (((y0 - vy * since) % 1) + 1) % 1;
+                g.globalAlpha = fade * (0.25 + 0.35 * (0.5 + 0.5 * Math.sin(since * 2 + ph)));
+                g.beginPath(); g.arc(x * W, y * H, size, 0, Math.PI * 2); g.fill();
+            }
+            g.globalAlpha = 1;
+        }
+
+        text(g, W, H, a) {
+            if (a <= 0) return;
+            const s = Math.min(W, H), big = Math.round(s * 0.06), small = Math.round(big * 0.5), y = H * (H > W ? 0.86 : 0.85);
+            g.save();
+            g.globalAlpha = a;
+            g.textAlign = 'center';
+            g.shadowColor = 'rgba(0,0,0,0.8)'; g.shadowBlur = big * 0.4;
+            g.fillStyle = '#fff';
+            g.font = `800 ${big}px Inter, sans-serif`;
+            if (this.p.title) g.fillText(this.p.title.toUpperCase(), W / 2, y, W * 0.9);
+            g.font = `600 ${small}px Inter, sans-serif`;
+            g.fillStyle = 'rgba(255,255,255,0.85)';
+            if (this.p.artist) g.fillText(this.p.artist.toUpperCase(), W / 2, y + (this.p.title ? small * 1.6 : 0), W * 0.9);
+            g.restore();
+        }
+    }
+
+    // ---- Export frames (driven by js/export.js, which loads this page with ?export=local) ----
+    let exportPainter = null;
+    window.__setupExport = async function () {
+        const { settings: s, audioUrl } = window.__localExport;
+        const host = document.getElementById('exportCanvasHost');
+        const canvas = document.createElement('canvas');
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        host.appendChild(canvas);
+        const image = s.image ? await new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = s.image; }) : null;
+        let features = null;
+        if (s.hasTrack) {
+            const audio = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(await (await fetch(audioUrl)).arrayBuffer());
+            features = await analyseFeatures(audio);
+        }
+        await document.fonts.load('800 60px Inter');
+        await document.fonts.load('600 30px Inter');
+        exportPainter = new Painter(canvas);
+        exportPainter.configure({ ...s.params, image }, features);
+        return { frames: exportPainter.frames, duration: s.params.clipLen, start: s.params.clipStart };
+    };
+    window.__renderExportFrame = function (i) {
+        exportPainter.advanceTo(i);
+        exportPainter.compose(i);
+        return exportPainter.out;
+    };
+
+    // ---- Live page ----
+    if (EXPORT_JOB) {
+        document.documentElement.classList.add('export-mode');
+        window.__visReady = true;
+    } else {
+        const $ = id => document.getElementById(id);
+        const canvas = $('paintCanvas');
+        const painter = new Painter(canvas);
+        const state = {
+            aspect: '9:16', preset: 'sunset', image: null, imageSrc: null, mode: 'impasto',
+            dna: { elongation: 2.4, relief: 0.8, opacity: 0.82, faceting: 0.1 },
+            brushScale: 1, chaos: 0.4, vibrance: 0.25, bgColor: '#09090b', target: 12000, seed: 1,
+            clipStart: 0, clipLen: 30, reveal: 21, finish: 'original', react: 1, postFx: true, showText: true, artist: '', title: '',
+        };
+        let features = null, trackFile = null, trackDuration = 0, drops = [], audioEl = null;
+        let playing = false, clock = 0, lastNow = performance.now(), dirty = true;
+        const fmt = s => { s = Math.max(0, s || 0); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; };
+        const setStatus = (text, href, name) => {
+            const el = $('status'); el.textContent = '';
+            if (href) { const a = document.createElement('a'); a.href = href; a.download = name; a.textContent = text; a.className = 'text-pink-400 underline'; el.appendChild(a); }
+            else el.textContent = text;
+        };
+
+        function params() {
+            return {
+                aspect: state.aspect, preset: state.preset, image: state.image, mode: state.mode, dna: { ...state.dna },
+                brushScale: state.brushScale, chaos: state.chaos, vibrance: state.vibrance, bgColor: state.bgColor, target: state.target, seed: state.seed,
+                clipStart: trackFile ? state.clipStart : 0, clipLen: state.clipLen, reveal: Math.min(state.reveal, state.clipLen),
+                finish: state.finish, react: trackFile ? state.react : 0, postFx: state.postFx, showText: state.showText, artist: state.artist, title: state.title,
+            };
+        }
+        function rebuild() {
+            const [pw, ph] = PAINT_SIZES[state.aspect];
+            canvas.width = pw; canvas.height = ph;
+            painter.configure(params(), features);
+            fitCanvas();
+            dirty = false;
+        }
+        function fitCanvas() {
+            const rect = $('canvasViewport').getBoundingClientRect();
+            const sc = Math.min(Math.max(200, rect.width - 16) / canvas.width, Math.max(200, rect.height - 16) / canvas.height);
+            canvas.style.width = `${Math.floor(canvas.width * sc)}px`;
+            canvas.style.height = `${Math.floor(canvas.height * sc)}px`;
+        }
+        window.addEventListener('resize', fitCanvas);
+
+        // Clip time: the track's position (minus the clip start) with a track, otherwise a plain clock.
+        const clipTime = () => trackFile && audioEl ? audioEl.currentTime - state.clipStart : clock;
+        function setTime(t) {
+            t = Math.max(0, Math.min(state.clipLen, t));
+            if (trackFile && audioEl) audioEl.currentTime = state.clipStart + t; else clock = t;
+        }
+        function setPlaying(on) {
+            playing = on;
+            if (trackFile && audioEl) { if (on) { if (clipTime() >= state.clipLen - 0.05 || clipTime() < 0) setTime(0); audioEl.play().catch(() => {}); } else audioEl.pause(); }
+            else if (on && clock >= state.clipLen - 0.05) clock = 0;
+            $('btnPlayPause').textContent = on ? '⏸ Pause' : '▶ Play';
+        }
+
+        function updateUI(f) {
+            const pct = Math.min(100, Math.round(painter.strokeCount / painter.p.target * 100));
+            $('strokeCounter').textContent = painter.strokeCount.toLocaleString();
+            $('progressPercent').textContent = `${pct}%`;
+            $('progressBar').style.width = `${pct}%`;
+            $('stageLabel').textContent = f >= painter.revealFrame ? '✨ Revealed' : pct < 22 ? 'Pass 1: Broad underpainting' : pct < 55 ? 'Pass 2: Mid-tone sculpting' : pct < 85 ? 'Pass 3: Contour detail' : 'Pass 4: Fine finishing';
+            const t = f / FPS;
+            $('timeNow').textContent = fmt(t);
+            $('timeTotal').textContent = fmt(state.clipLen);
+            if (!seeking) $('seek').value = Math.round(t / state.clipLen * 1000);
+        }
+
+        let seeking = false;
+        function loop(now) {
+            requestAnimationFrame(loop);
+            if (exporting) return;
+            const dt = Math.min(0.1, (now - lastNow) / 1000);
+            lastNow = now;
+            if (dirty) rebuild();
+            if (playing && !(trackFile && audioEl)) clock += dt;
+            let t = clipTime();
+            if (t >= state.clipLen) { t = state.clipLen; if (playing) setPlaying(false); }
+            const f = Math.max(0, Math.min(painter.frames - 1, Math.floor(t * FPS)));
+            if (f < painter.frame) painter.reset();   // went back in time: repaint from the start (same seed, same strokes)
+            painter.advanceTo(f);
+            painter.compose(f);
+            updateUI(f);
+        }
+
+        // ---- Track ----
+        async function loadTrack(file) {
+            trackFile = file;
+            if (!audioEl) { audioEl = new Audio(); audioEl.addEventListener('ended', () => setPlaying(false)); }
+            if (audioEl.src) URL.revokeObjectURL(audioEl.src);
+            audioEl.src = URL.createObjectURL(file);
+            $('trackName').textContent = file.name;
+            if (!state.title) { state.title = file.name.replace(/\.[^/.]+$/, ''); $('txtTitle').value = state.title; }
+            setPlaying(false);
+            setStatus('Listening to the track for its beats and drops…');
+            features = null; drops = [];
+            try {
+                const audio = await new OfflineAudioContext(1, 1, 44100).decodeAudioData(await file.arrayBuffer());
+                if (trackFile !== file) return;
+                trackDuration = audio.duration;
+                features = await analyseFeatures(audio);
+                const analysis = await KinetixDirector.analyse(audio);
+                if (trackFile !== file) return;
+                drops = analysis.sections.filter((s, i) => i > 0 && s.kind === 'drop' && analysis.sections[i - 1].kind !== 'drop').map(s => s.start);
+                // A first clip: 15 s of build-up, then the first drop as the reveal.
+                const drop = drops.find(d => d >= 6);
+                const len = state.clipLen;
+                state.clipStart = drop ? Math.max(0, Math.round((drop - len / 2) * 10) / 10) : 0;
+                if (state.clipStart + len > trackDuration) state.clipStart = Math.max(0, Math.round((trackDuration - len) * 10) / 10);
+                state.reveal = drop ? Math.round((drop - state.clipStart) * 10) / 10 : Math.round(len * 0.7 * 10) / 10;
+                syncClipUI();
+                setStatus(drop ? `Set up: the painting completes on the drop at ${fmt(drop)}. Press Play.` : 'No clear drop found; the reveal is at 70% of the clip. Move it if you like.');
+                window.track && window.track('ChromaFlow track', { drop: !!drop });
+            } catch (err) {
+                setStatus(`⚠ Couldn't read that audio file (${err.message}).`);
+                trackFile = null;
+            }
+            dirty = true;
+        }
+
+        function syncClipUI() {
+            const hasTrack = !!trackFile;
+            if (state.clipLen === 'full') state.clipLen = trackDuration || 30;
+            if (hasTrack) state.clipLen = Math.min(state.clipLen, Math.max(1, trackDuration - state.clipStart));
+            state.reveal = Math.max(0.5, Math.min(state.reveal, state.clipLen));
+            $('clipStartRow').classList.toggle('hidden', !hasTrack);
+            $('sliderClipStart').max = Math.max(0, (trackDuration || 0) - 5);
+            $('sliderClipStart').value = state.clipStart;
+            $('valClipStart').textContent = fmt(state.clipStart);
+            $('sliderReveal').max = state.clipLen;
+            $('sliderReveal').value = state.reveal;
+            $('valReveal').textContent = fmt(state.reveal);
+            const inClip = drops.filter(d => d > state.clipStart + 0.5 && d < state.clipStart + state.clipLen);
+            $('dropHint').textContent = !hasTrack ? '' : inClip.length ? `Drop in this clip at ${fmt(inClip[0] - state.clipStart)}` : 'No drop inside this clip';
+            $('btnUseDrop').classList.toggle('hidden', !inClip.length);
+            $('sliderReact').disabled = !hasTrack;
+        }
+
+        // ---- Controls ----
+        const markActive = (selector, el, on, off) => document.querySelectorAll(selector).forEach(b => { const a = b === el; on.forEach(c => b.classList.toggle(c, a)); off.forEach(c => b.classList.toggle(c, !a)); });
+        document.querySelectorAll('.preset-btn').forEach(btn => btn.addEventListener('click', () => {
+            markActive('.preset-btn', btn, ['border-pink-500'], ['border-zinc-800']);
+            state.preset = btn.dataset.preset; state.image = null; state.imageSrc = null; dirty = true;
+        }));
+        $('imageUpload').addEventListener('change', e => {
+            const file = e.target.files[0]; if (!file) return;
+            const img = new Image();
+            img.onload = () => { markActive('.preset-btn', null, ['border-pink-500'], ['border-zinc-800']); state.image = img; state.imageSrc = img.src; dirty = true; };
+            img.src = URL.createObjectURL(file);
+        });
+        $('btnLoadAudio').addEventListener('click', () => $('audioUpload').click());
+        const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (isIOS) $('audioUpload').removeAttribute('accept');
+        $('audioUpload').addEventListener('change', e => { const f = e.target.files[0]; if (f) loadTrack(f); });
+
+        const DNA_PRESETS = {
+            impasto: { elongation: 2.4, relief: 0.80, opacity: 0.82, faceting: 0.10, name: 'Oil Impasto' },
+            flow: { elongation: 6.5, relief: 0.25, opacity: 0.70, faceting: 0.05, name: 'Silk Flow' },
+            watercolor: { elongation: 1.1, relief: 0.05, opacity: 0.16, faceting: 0.25, name: 'Watercolor' },
+            pointillism: { elongation: 0.6, relief: 0.45, opacity: 0.90, faceting: 0.00, name: 'Pointillism' },
+            knife: { elongation: 3.2, relief: 0.95, opacity: 0.94, faceting: 0.85, name: 'Palette Knife' },
+        };
+        function syncDNA(name) {
+            $('sliderElongation').value = state.dna.elongation; $('valElongation').textContent = `${state.dna.elongation.toFixed(1)}x`;
+            $('sliderRelief').value = Math.round(state.dna.relief * 100); $('valRelief').textContent = `${Math.round(state.dna.relief * 100)}%`;
+            $('sliderOpacity').value = Math.round(state.dna.opacity * 100); $('valOpacity').textContent = `${Math.round(state.dna.opacity * 100)}%`;
+            $('sliderFacet').value = Math.round(state.dna.faceting * 100); $('valFacet').textContent = `${Math.round(state.dna.faceting * 100)}%`;
+            $('dnaRecipeTag').textContent = name;
+        }
+        document.querySelectorAll('.mode-btn').forEach(btn => btn.addEventListener('click', () => {
+            markActive('.mode-btn', btn, ['border-pink-500/80', 'bg-pink-500/10'], ['border-zinc-800', 'bg-zinc-900/60']);
+            state.mode = btn.dataset.mode;
+            const pre = DNA_PRESETS[state.mode];
+            if (pre) { Object.assign(state.dna, { elongation: pre.elongation, relief: pre.relief, opacity: pre.opacity, faceting: pre.faceting }); syncDNA(pre.name); }
+            dirty = true;
+        }));
+        $('btnMutateDNA').addEventListener('click', () => {
+            const adj = ['Velvet', 'Prismatic', 'Sumi-e', 'Crystalline', 'Impressionist', 'Gouache', 'Chalk', 'Cyber', 'Fresco', 'Encaustic'];
+            const noun = ['Impasto', 'Stipple', 'Wash', 'Knife', 'Calligraphy', 'Shards', 'Weave', 'Glaze'];
+            state.dna = { elongation: +(0.5 + Math.random() * 6.8).toFixed(1), relief: +Math.random().toFixed(2), opacity: +(0.12 + Math.random() * 0.88).toFixed(2), faceting: +Math.random().toFixed(2) };
+            state.mode = 'dna';
+            markActive('.mode-btn', document.querySelector('.mode-btn[data-mode="dna"]'), ['border-pink-500/80', 'bg-pink-500/10'], ['border-zinc-800', 'bg-zinc-900/60']);
+            syncDNA(`${adj[Math.floor(Math.random() * adj.length)]} ${noun[Math.floor(Math.random() * noun.length)]}`);
+            dirty = true;
+        });
+        const toCustom = () => { state.mode = 'dna'; markActive('.mode-btn', document.querySelector('.mode-btn[data-mode="dna"]'), ['border-pink-500/80', 'bg-pink-500/10'], ['border-zinc-800', 'bg-zinc-900/60']); $('dnaRecipeTag').textContent = 'Custom'; dirty = true; };
+        $('sliderElongation').addEventListener('input', e => { state.dna.elongation = +e.target.value; $('valElongation').textContent = `${state.dna.elongation.toFixed(1)}x`; toCustom(); });
+        $('sliderRelief').addEventListener('input', e => { state.dna.relief = e.target.value / 100; $('valRelief').textContent = `${e.target.value}%`; toCustom(); });
+        $('sliderOpacity').addEventListener('input', e => { state.dna.opacity = e.target.value / 100; $('valOpacity').textContent = `${e.target.value}%`; toCustom(); });
+        $('sliderFacet').addEventListener('input', e => { state.dna.faceting = e.target.value / 100; $('valFacet').textContent = `${e.target.value}%`; toCustom(); });
+
+        document.querySelectorAll('.aspect-btn').forEach(btn => btn.addEventListener('click', () => {
+            markActive('.aspect-btn', btn, ['border-pink-500', 'bg-pink-500/10', 'text-white'], ['border-zinc-800', 'bg-zinc-900', 'text-zinc-300']);
+            state.aspect = btn.dataset.aspect; dirty = true;
+        }));
+        const bindRange = (id, valId, apply, label) => $(id).addEventListener('input', e => { apply(+e.target.value); $(valId).textContent = label(+e.target.value); dirty = true; });
+        bindRange('sliderTargetStrokes', 'valTargetStrokes', v => { state.target = v; }, v => v.toLocaleString());
+        bindRange('sliderScale', 'valScale', v => { state.brushScale = v; }, v => `${v.toFixed(1)}x`);
+        bindRange('sliderChaos', 'valChaos', v => { state.chaos = v / 100; }, v => `${v}%`);
+        bindRange('sliderVibrance', 'valVibrance', v => { state.vibrance = v / 100; }, v => `${v}%`);
+        bindRange('sliderReact', 'valReact', v => { state.react = v / 100; }, v => `${v}%`);
+        bindRange('sliderReveal', 'valReveal', v => { state.reveal = v; }, fmt);
+        $('sliderClipStart').addEventListener('input', e => { state.clipStart = +e.target.value; syncClipUI(); setTime(0); dirty = true; });
+        $('selClipLen').addEventListener('change', e => { state.clipLen = e.target.value === 'full' ? (trackDuration ? trackDuration - state.clipStart : 60) : +e.target.value; syncClipUI(); dirty = true; });
+        $('btnUseDrop').addEventListener('click', () => {
+            const d = drops.find(x => x > state.clipStart + 0.5 && x < state.clipStart + state.clipLen);
+            if (d) { state.reveal = Math.round((d - state.clipStart) * 10) / 10; syncClipUI(); dirty = true; }
+        });
+        $('selFinish').addEventListener('change', e => { state.finish = e.target.value; dirty = true; });
+        $('chkPostFx').addEventListener('change', e => { state.postFx = e.target.checked; dirty = true; });
+        $('chkText').addEventListener('change', e => { state.showText = e.target.checked; dirty = true; });
+        $('txtArtist').addEventListener('input', e => { state.artist = e.target.value; painter.p.artist = state.artist; });
+        $('txtTitle').addEventListener('input', e => { state.title = e.target.value; painter.p.title = state.title; });
+        document.querySelectorAll('#bgToneButtons button').forEach(btn => btn.addEventListener('click', () => {
+            markActive('#bgToneButtons button', btn, ['border-pink-500'], ['border-zinc-700']);
+            state.bgColor = btn.dataset.bg; dirty = true;
+        }));
+
+        $('btnPlayPause').addEventListener('click', () => setPlaying(!playing));
+        $('btnRestart').addEventListener('click', () => { setTime(0); painter.reset(); });
+        $('seek').addEventListener('input', e => { seeking = true; setTime(e.target.value / 1000 * state.clipLen); });
+        $('seek').addEventListener('change', () => { seeking = false; });
+        $('btnSnapshot').addEventListener('click', () => {
+            const a = document.createElement('a');
+            a.download = `chromaflow-${Date.now()}.png`;
+            a.href = canvas.toDataURL('image/png');
+            a.click();
+        });
+
+        // ---- Export ----
+        let exporting = false;
+        // Without a track the video is silent: a silent WAV of the clip's length stands in for the audio.
+        function silentWav(seconds) {
+            const rate = 48000, n = Math.round(seconds * rate), buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+            const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+            str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt '); v.setUint32(16, 16, true);
+            v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true);
+            v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 2, true);
+            return new Blob([buf], { type: 'audio/wav' });
+        }
+        // Uploaded covers travel to the export as a JPEG of at most 2560 px on the long side.
+        function encodeImage(img) {
+            const k = Math.min(1, 2560 / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
+            const c = document.createElement('canvas');
+            c.width = Math.round((img.naturalWidth || img.width) * k); c.height = Math.round((img.naturalHeight || img.height) * k);
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            return c.toDataURL('image/jpeg', 0.92);
+        }
+        $('btnExport').addEventListener('click', async () => {
+            const btn = $('btnExport');
+            btn.disabled = true;
+            try {
+                if (!BrowserExport.supported()) throw new Error('Exporting needs Chrome or Edge on a computer.');
+                if (trackFile && !features) throw new Error('Still listening to the track. Try again in a moment.');
+                setPlaying(false);
+                const aspect = EXPORT_ASPECT[state.aspect];
+                const fileName = BrowserExport.fileNameFor(state.artist, state.title || 'ChromaFlow reveal', aspect);
+                const save = await BrowserExport.pickSaveFile(fileName);   // first, while the click still counts as a gesture
+                setStatus('Exporting…');
+                exporting = true;
+                const { image, ...rest } = params();
+                const result = await BrowserExport.exportVideo({
+                    page: 'chromaflow.html', audioFile: trackFile || silentWav(state.clipLen), aspect, fileName, save,
+                    settings: { hasTrack: !!trackFile, params: rest, image: state.image ? encodeImage(state.image) : null },
+                });
+                if (result.savedTo) setStatus(`✓ Saved ${result.savedTo}`);
+                else setStatus(`✓ Download ${fileName}`, result.url, fileName);
+            } catch (err) { setStatus(`⚠ ${err.message}`); }
+            finally { btn.disabled = false; exporting = false; }
+        });
+
+        // Arriving from the Song Studio: its title and artist.
+        if (new URLSearchParams(location.search).has('from')) {
+            try {
+                const h = JSON.parse(localStorage.getItem('studio.handoff') || 'null');
+                if (h) {
+                    if (h.title) { state.title = h.title; $('txtTitle').value = h.title; }
+                    if (h.artist) { state.artist = h.artist; $('txtArtist').value = h.artist; }
+                    setStatus(`Set up for “${h.title}”. Upload your cover art and load the track.`);
+                }
+            } catch {}
+        }
+
+        syncClipUI();
+        requestAnimationFrame(loop);
+    }
+    </script>
+</body>
+</html>
