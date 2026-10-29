@@ -65,25 +65,18 @@
         tick();
         const timer = setInterval(tick, 1000);
         try {
-            const send = () => fetch('api/compose', {
-                method: 'POST',
-                headers: { 'content-type': 'application/json', 'x-studio-code': store.get('studio.code', '') },
-                body: JSON.stringify(payload),
-            });
-            let res = await send();
-            let data = await res.json().catch(() => ({ error: 'The server sent an unexpected reply.' }));
-            // The Studio is part of Pro: deployments with an access code ask for it once; it's remembered in this
-            // browser. Cancelling shows what Pro includes.
-            if (res.status === 401 && data.needCode) {
-                const code = window.prompt('The Song Studio is part of Pro. Enter your access code (or Cancel to see Pro):');
-                if (!code) {
-                    document.getElementById('pro')?.scrollIntoView({ behavior: 'smooth' });
-                    throw new Error('The Song Studio is part of Pro. See Free and Pro below.');
-                }
-                store.set('studio.code', code.trim());
-                res = await send();
-                data = await res.json().catch(() => ({ error: 'The server sent an unexpected reply.' }));
-                if (res.status === 401) store.set('studio.code', '');
+            // The Studio is part of Pro: deployments with an access code ask for it once (js/access.js); it's
+            // remembered in this browser. Cancelling shows what Pro includes.
+            let res, data;
+            try {
+                ({ res, data } = await AccessCode.request(code => fetch('api/compose', {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json', 'x-studio-code': code },
+                    body: JSON.stringify(payload),
+                }), 'The Song Studio'));
+            } catch (err) {
+                if (err.pro) { document.getElementById('pro')?.scrollIntoView({ behavior: 'smooth' }); throw new Error('The Song Studio is part of Pro. See Free and Pro below.'); }
+                throw err;
             }
             if (data.quota) $('quota').textContent = `${data.quota.left} free ${data.quota.left === 1 ? 'song' : 'songs'} left today`;
             if (!res.ok || data.error) throw new Error(data.error || `Request failed (${res.status}).`);

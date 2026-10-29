@@ -67,8 +67,8 @@ word timestamps with the lyrics as a hint. The page then matches Whisper's words
 words between their neighbours, and moves each word's start to where the voice comes in (vocal-band energy). The
 same method as the RemotionVideo project's `tools/sync-lyrics.mjs`.
 
-Needs `GROQ_API_KEY` (in `.env` locally, in Vercel for the live site); it uses the Studio's access code, and with
-a `QUOTA` KV binding, `LYRICS_DAILY_LIMIT` syncs per visitor per day (default 10).
+Needs `GROQ_API_KEY` (in `.env` locally, in Vercel for the live site); it uses the Studio's access code and the
+daily limits below (`LYRICS_DAILY_LIMIT`, default 10 syncs per visitor).
 
 ## Home page, Pro and analytics
 
@@ -93,7 +93,7 @@ a `QUOTA` KV binding, `LYRICS_DAILY_LIMIT` syncs per visitor per day (default 10
 npm install
 ```
 
-Put your Anthropic API key in `.env` (`ANTHROPIC_API_KEY=...`; the file is git-ignored), then:
+Copy `.env.example` to `.env` and put in your Anthropic API key (`ANTHROPIC_API_KEY=...`; `.env` is git-ignored), then:
 
 ```bash
 npm run dev
@@ -121,15 +121,30 @@ In the Vercel project, under Settings → Environment Variables, add:
 - `AI_MODEL` / `AI_EFFORT` if you change them
 - `SHADER_EFFORT` for the loop writer: `low` by default (about 15 seconds per loop), `medium` takes about 55 seconds,
   too close to Vercel's 60-second limit
+- Daily limits (see below): connect Upstash Redis for limits that hold across Vercel's instances
 
 Redeploy after changing variables.
+
+### Daily limits
+
+The three AI endpoints (the Studio, the loop writer and lyric sync) count requests per visitor per day in
+`api/_lib/limits.js` and answer 429 when a limit is reached; the pages show the message. Defaults:
+`FREE_DAILY_LIMIT` 5 songs, `SHADER_DAILY_LIMIT` 20 loop requests (fixes included), `LYRICS_DAILY_LIMIT` 10 syncs.
+Visitors who send the access code get `PRO_LIMIT_FACTOR` times as many (default 10). `AI_DAILY_LIMIT` optionally caps
+all AI requests per day across every visitor, a ceiling on the day's cost.
+
+Counters are kept in a Cloudflare KV namespace bound as `QUOTA`, else in Upstash Redis
+(`UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`, or `KV_REST_API_URL` + `KV_REST_API_TOKEN` as Vercel's Upstash
+integration names them: Vercel → Storage → Upstash, free tier), else in the server's memory. Memory is only a
+fallback: Vercel runs several short-lived instances, each counting on its own. Also set a monthly spending limit on
+the Anthropic and Groq keys.
 
 ### Cloudflare Pages (alternative)
 
 Create a Pages project from the repo (no build command, output directory `/`); Cloudflare runs
-`functions/api/compose.js` and `functions/api/shader.js`, which re-export the same engines. Add the same variables under Settings → Variables and Secrets. Binding a KV
-namespace as `QUOTA` turns on a free daily limit per visitor (`FREE_DAILY_LIMIT`, default 5 songs;
-`SHADER_DAILY_LIMIT`, default 20 loop requests, fixes included).
+`functions/api/compose.js`, `functions/api/shader.js` and `functions/api/lyrics.js`, which re-export the same engines.
+Add the same variables under Settings → Variables and Secrets, and bind a KV namespace as `QUOTA` for the daily
+limits.
 
 `test-assets/`, `Music/`, `.env` and `node_modules/` are git-ignored and never deployed.
 

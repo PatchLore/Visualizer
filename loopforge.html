@@ -7,6 +7,7 @@
     <script src="js/analytics.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js"></script>
     <script src="js/export.js"></script>
+    <script src="js/access.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -523,22 +524,12 @@ const aiStatus = document.getElementById('aiStatus');
 function setAiStatus(msg, isError = false) { aiStatus.textContent = msg; aiStatus.classList.toggle('error', isError); }
 
 async function askShader(payload) {
-    const send = () => fetch('api/shader', {
+    // AI loops are part of Pro: the access code is asked for once (js/access.js) and remembered in this browser.
+    const { res, data } = await AccessCode.request(code => fetch('api/shader', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-studio-code': store.get('studio.code', '') },
+        headers: { 'content-type': 'application/json', 'x-studio-code': code },
         body: JSON.stringify(payload),
-    });
-    let res = await send();
-    let data = await res.json().catch(() => ({ error: 'The server sent an unexpected reply.' }));
-    // Private deployments ask for the Studio's access code once; it's remembered in this browser.
-    if (res.status === 401 && data.needCode) {
-        const code = window.prompt('AI loops are part of Pro. Enter your access code (or Cancel to see Pro):');
-        if (!code) { const e = new Error('AI loops are part of Pro. '); e.pro = true; throw e; }
-        store.set('studio.code', code.trim());
-        res = await send();
-        data = await res.json().catch(() => ({ error: 'The server sent an unexpected reply.' }));
-        if (res.status === 401) store.set('studio.code', '');
-    }
+    }), 'AI loops');
     if (!res.ok || data.error) throw new Error(data.error || `Request failed (${res.status}).`);
     return data;
 }

@@ -6,8 +6,8 @@
 // Served on Vercel through api/lyrics.js, on Cloudflare Pages through functions/api/lyrics.js, and locally through
 // dev-server.mjs. Uses the Studio's access code and quota settings (see api/_lib/compose.js), plus:
 //   GROQ_API_KEY          required (Claude can't time audio; this is a speech-recognition model)
-//   LYRICS_DAILY_LIMIT    syncs per visitor per day when QUOTA is bound (default 10)
-import { useQuota } from './compose.js';
+//   LYRICS_DAILY_LIMIT    sync requests per visitor per day (default 10; see api/_lib/limits.js)
+import { useQuota, limitMessage } from './limits.js';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
     status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
@@ -28,7 +28,7 @@ export async function onRequestPost({ request, env }) {
     const language = /^[a-z]{2}$/.test(String(form.get('language') || '')) ? String(form.get('language')) : '';
 
     const quota = await useQuota(request, env, { prefix: 'lyrics', limit: Number(env.LYRICS_DAILY_LIMIT || 10) });
-    if (quota && quota.left < 0) return json({ error: 'You have used today\'s free lyric syncs. Come back tomorrow.', quota }, 429);
+    if (quota.left < 0) return json({ error: limitMessage(quota, 'lyric syncs'), limited: true, quota }, 429);
 
     const body = new FormData();
     body.append('file', audio, audio.name || 'track.m4a');

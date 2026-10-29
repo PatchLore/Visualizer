@@ -169,22 +169,13 @@
         set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} },
     };
     async function requestTimings(blob, text) {
-        const send = () => {
+        // Lyric sync is part of Pro: the access code is asked for once (js/access.js) and remembered in this browser.
+        const { res, data } = await AccessCode.request(code => {
             const form = new FormData();
             form.append('audio', blob, blob.type === 'audio/mp4' ? 'track.m4a' : 'track.wav');
             form.append('prompt', [...new Set(lyricLines(text))].join(' ').slice(0, 880));
-            return fetch('api/lyrics', { method: 'POST', headers: { 'x-studio-code': store.get('studio.code', '') }, body: form });
-        };
-        let res = await send();
-        let data = await res.json().catch(() => ({ error: 'The server sent an unexpected reply.' }));
-        if (res.status === 401 && data.needCode) {
-            const code = window.prompt('Lyric sync is part of Pro. Enter your access code (or Cancel to see Pro):');
-            if (!code) { const e = new Error('Lyric sync is part of Pro. '); e.pro = true; throw e; }
-            store.set('studio.code', code.trim());
-            res = await send();
-            data = await res.json().catch(() => ({ error: 'The server sent an unexpected reply.' }));
-            if (res.status === 401) store.set('studio.code', '');
-        }
+            return fetch('api/lyrics', { method: 'POST', headers: { 'x-studio-code': code }, body: form });
+        }, 'Lyric sync');
         if (!res.ok || data.error) throw new Error(data.error || `Request failed (${res.status}).`);
         return data.words;
     }

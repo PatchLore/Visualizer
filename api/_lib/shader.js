@@ -6,11 +6,11 @@
 // Served on Vercel through api/shader.js, on Cloudflare Pages through functions/api/shader.js, and locally through
 // dev-server.mjs. Uses the same environment as api/_lib/compose.js, plus:
 //   SHADER_EFFORT        low (default, about 15 s) | medium (about 55 s, close to Vercel's 60 s limit) | high
-//   SHADER_DAILY_LIMIT   free loops per visitor per day when QUOTA is bound (default 20)
+//   SHADER_DAILY_LIMIT   loop requests per visitor per day, fixes included (default 20; see api/_lib/limits.js)
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import * as z from 'zod/v4';
-import { useQuota } from './compose.js';
+import { useQuota, limitMessage } from './limits.js';
 
 const DEFAULT_MODEL = 'claude-opus-5-5';
 
@@ -35,7 +35,7 @@ export async function onRequestPost({ request, env }) {
     if ((input.change || input.problem) && !input.previous) return json({ error: 'Nothing to change yet.' }, 400);
 
     const quota = await useQuota(request, env, { prefix: 'shader', limit: Number(env.SHADER_DAILY_LIMIT || 20) });
-    if (quota && quota.left < 0) return json({ error: 'You have used today\'s free loops. Come back tomorrow.', quota }, 429);
+    if (quota.left < 0) return json({ error: limitMessage(quota, 'loops'), limited: true, quota }, 429);
 
     try {
         const scene = await callClaude(env, userPrompt(input));

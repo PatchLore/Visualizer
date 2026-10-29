@@ -10,11 +10,12 @@
 //   AI_EFFORT           low (default, about 30 s) | medium (about 60 s) | high
 //   STUDIO_ACCESS_CODE  optional; when set, requests must send it (x-studio-code header) - keeps a public
 //                       deployment from spending the key until payments exist
-//   QUOTA               optional Cloudflare KV binding; with it, FREE_DAILY_LIMIT generations per visitor per day
-//   FREE_DAILY_LIMIT    default 5
+//   FREE_DAILY_LIMIT    songs per visitor per day (default 5), counted as api/_lib/limits.js describes (Cloudflare
+//                       KV, Upstash Redis or memory), with PRO_LIMIT_FACTOR and AI_DAILY_LIMIT
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import * as z from 'zod/v4';
+import { useQuota, limitMessage } from './limits.js';
 
 const DEFAULT_MODEL = 'claude-opus-5-5';
 const LIMITS = {
@@ -37,7 +38,7 @@ export async function onRequestPost({ request, env }) {
     if (input.error) return json({ error: input.error }, 400);
 
     const quota = await useQuota(request, env);
-    if (quota && quota.left < 0) return json({ error: 'You have used today\'s free generations. Come back tomorrow, or upgrade for unlimited.', quota }, 429);
+    if (quota.left < 0) return json({ error: limitMessage(quota, 'songs'), limited: true, quota }, 429);
 
     try {
         const parsed = await callClaude(env, buildSystemPrompt(input), buildUserPrompt(input));
@@ -88,18 +89,6 @@ function readInput(b) {
         return { error: 'Describe the song first.' };
     }
     return input;
-}
-
-// ---- Free daily limit (only when a KV namespace is bound as QUOTA) ----
-// Also used by the shader writer (api/_lib/shader.js), which counts under its own prefix and limit.
-export async function useQuota(request, env, { prefix = 'q', limit = Number(env.FREE_DAILY_LIMIT || 5) } = {}) {
-    if (!env.QUOTA) return null;
-    const who = request.headers.get('cf-connecting-ip') || 'unknown';
-    const key = `${prefix}:${new Date().toISOString().slice(0, 10)}:${who}`;
-    const used = Number(await env.QUOTA.get(key)) || 0;
-    if (used >= limit) return { limit, left: -1 };
-    await env.QUOTA.put(key, String(used + 1), { expirationTtl: 60 * 60 * 26 });
-    return { limit, left: limit - used - 1 };
 }
 
 // ---- Prompts ----

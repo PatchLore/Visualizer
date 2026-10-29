@@ -4,3 +4,4 @@ Music/
 test-assets/
 node_modules/
 promo/
+.env.example
