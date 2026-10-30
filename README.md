@@ -19,8 +19,10 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
     outro) and plans the video: shader changes on phrase lines (cuts with a glitch into drops, crossfades into calm
     parts, a new look every 16 bars in long sections), 8-bit builds that snap sharp on the drop, a flash, one-beat
     invert and hyperdrive on arrival, and glitch or 8-bit fills at phrase ends. The plan shows on a timeline where
-    scenes and effects can be dragged (snapping to beats), retimed, added or removed; Regenerate gives another plan
-    and ½/2× fixes a tempo detected an octave off. The plan is plain data, so the preview and the MP4 match. It
+    scenes and effects can be dragged (snapping to beats), retimed, added or removed; Regenerate gives another plan;
+    ½/2× fixes a tempo detected an octave off, and the BPM field takes the track's real tempo when detection
+    locks onto a related one (drum and bass at 175 can read as 117, since its breaks repeat every beat and a
+    half). The plan is plain data, so the preview and the MP4 match. It
     also works as a live VJ tool: mic input, tap tempo and a built-in kick, hold-to-play FX pads and keys,
     fullscreen, and short WebM loop recordings.
     **Flashing:** the held strobe runs at 3 Hz, the photosensitivity limit, and a planned flash or invert less than a
@@ -79,8 +81,9 @@ daily limits below (`LYRICS_DAILY_LIMIT`, default 10 syncs per visitor).
 ## Home page, Pro and analytics
 
 - **Demo video**: `examples/demo.mp4` (720p, 36 s, with sound) plays from the top of the home page. It was rendered
-  from the app itself (title and end cards, the Studio with a real result, Spectrum, AetherFlux and KINETIX on one
-  stretch of a track, and LOOP//FORGE), with the track's audio added in ffmpeg. The 1080p master for sharing is kept
+  from the app itself (title and end cards, the Studio with a real result, Spectrum, AetherFlux and KINETIX on the
+  build into the first drop of "Afterglow", a 9:16 export, and LOOP//FORGE), with the track's audio added
+  in ffmpeg at -14 LUFS. The 1080p master for sharing is kept
   locally in `promo/`, which is neither committed nor deployed.
 - **Showcase**: the home page opens with real exports in `examples/` (muted MP4s with poster frames, played only
   while on screen, never for people who prefer reduced motion). They were rendered from this app's own export hooks.

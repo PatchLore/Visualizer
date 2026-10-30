@@ -120,6 +120,8 @@
         .empty { color: var(--muted); font-size: 10px; padding: 4px 2px; }
 
         #hud-toggle { display: none; }
+        .dir-bpm { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; color: var(--muted); letter-spacing: 0.08em; }
+        .dir-bpm input { width: 64px; padding: 5px 6px; background: rgba(0, 0, 0, 0.4); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font: inherit; font-size: 12px; }
         #flash-notice { box-sizing: border-box; width: min(420px, calc(100vw - 32px)); margin: auto; padding: 22px; color: #e8ecf4;
             background: #0d0f15; border: 1px solid var(--border); border-radius: 14px; font: 13px/1.55 inherit; }
         #flash-notice::backdrop { background: rgba(0, 0, 0, 0.7); }
@@ -257,6 +259,7 @@
             <div class="fx-row">
                 <button id="dir-run">Auto-direct track</button>
                 <button id="dir-regen" title="A different plan for the same sections">Regenerate</button>
+                <label class="dir-bpm" title="The detected tempo. If it's wrong, type the track's real BPM and the plan is redone on its beats.">BPM <input id="dir-bpm" type="number" min="60" max="200" step="0.1" inputmode="decimal"></label>
                 <button id="dir-half" class="small" title="Half the detected tempo">½ BPM</button>
                 <button id="dir-double" class="small" title="Double the detected tempo">2× BPM</button>
                 <button id="dir-clear" class="small">Clear</button>
@@ -959,7 +962,9 @@ const beatSec = () => direction ? direction.periodSec : 0.5;
 function updateDirInfo() {
     const el = document.getElementById('dir-info');
     el.textContent = direction ? `${direction.bpm} BPM · ${direction.sections.length} sections` : scenes.length || events.length ? 'Hand-made plan' : 'No plan yet';
-    for (const id of ['dir-regen', 'dir-half', 'dir-double']) document.getElementById(id).disabled = !direction;
+    for (const id of ['dir-regen', 'dir-half', 'dir-double', 'dir-bpm']) document.getElementById(id).disabled = !direction;
+    const field = document.getElementById('dir-bpm');
+    if (document.activeElement !== field) field.value = direction ? direction.bpm : '';
 }
 
 async function autoDirect(regenerate) {
@@ -998,6 +1003,16 @@ function retempo(factor) {
     const next = KinetixDirector.retempo(direction, factor);
     if (next.bpm === direction.bpm) { setStatus('That tempo is out of range.'); return; }
     direction = next;
+    makePlan();
+}
+
+// A tempo typed in: the beats are tracked again at that speed and the plan redone.
+function setTempo(value) {
+    if (!direction) return;
+    const want = Number(value);
+    if (!(want >= 60 && want <= 200)) { setStatus('Type a tempo between 60 and 200 BPM.'); updateDirInfo(); return; }
+    if (Math.abs(want - direction.bpm) < 0.05) return;
+    direction = KinetixDirector.withTempo(direction, want);
     makePlan();
 }
 
@@ -1381,6 +1396,7 @@ function bindControls() {
     document.getElementById('dir-regen').onclick = () => autoDirect(true);
     document.getElementById('dir-half').onclick = () => retempo(0.5);
     document.getElementById('dir-double').onclick = () => retempo(2);
+    document.getElementById('dir-bpm').onchange = e => setTempo(e.target.value);
     document.getElementById('dir-clear').onclick = clearPlan;
     document.getElementById('add-scene').onclick = addSceneAtPlayhead;
     document.getElementById('add-fx').onclick = addFxAtPlayhead;

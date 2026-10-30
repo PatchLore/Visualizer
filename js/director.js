@@ -137,13 +137,31 @@
 
     async function analyse(audio, onProgress) {
         const feat = await features(audio, onProgress);
+        feat.onsets = onsetEnvelope(feat.flux, feat.fps);
+        return fromPeriod(feat, beatPeriod(feat.onsets, feat.fps));
+    }
+
+    // Beats tracked around a beat period (in frames), then the sections. The beat length is the average of the
+    // tracked intervals near their median: beats fall on whole frames, so at 175 BPM they alternate 29 and 30 frames
+    // apart, and the median alone would say 172.3.
+    function fromPeriod(feat, period) {
         const { fps, offset, duration } = feat;
-        const o = onsetEnvelope(feat.flux, fps);
-        const period = beatPeriod(o, fps);
-        const tracked = trackBeats(o, period);
+        const tracked = trackBeats(feat.onsets, period);
         const intervals = tracked.slice(1).map((b, i) => b - tracked[i]).sort((a, b) => a - b);
-        const periodSec = (intervals.length > 8 ? intervals[intervals.length >> 1] : period) / fps;
+        let beat = period;
+        if (intervals.length > 8) {
+            const median = intervals[intervals.length >> 1], near = intervals.filter(d => Math.abs(d - median) <= 1.5);
+            beat = near.reduce((s, d) => s + d, 0) / near.length;
+        }
+        const periodSec = beat / fps;
         return structure(feat, fillBeats(tracked, fps, offset, duration, periodSec), periodSec);
+    }
+
+    // The track re-tracked at a tempo the user knows (60-200 BPM). Detection can lock onto a related tempo: drum and
+    // bass at 175 often reads as 117 (its breaks repeat every beat and a half), which half or double can't fix.
+    function withTempo(analysis, bpm) {
+        if (!(bpm >= 60 && bpm <= 200)) return analysis;
+        return fromPeriod(analysis.feat, 60 * analysis.feat.fps / bpm);
     }
 
     // The same track at half or double the detected tempo (factor 0.5 or 2), for when the guess is an octave off.
@@ -327,5 +345,5 @@
 
     const round = x => Math.round(x * 1000) / 1000;
 
-    window.KinetixDirector = { analyse, retempo, plan, makeFft };
+    window.KinetixDirector = { analyse, retempo, withTempo, plan, makeFft };
 })();
