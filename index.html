@@ -42,35 +42,7 @@
     <section class="hero">
         <h1>Describe the music you imagine.</h1>
         <p class="lead">Get a Suno-ready prompt, lyrics and a scene-by-scene video plan. When your track is made, turn it into a visualiser video, right here in your browser.</p>
-    </section>
-
-    <section class="demo" aria-label="Demo video">
-        <video id="demo-video" controls playsinline preload="none" poster="examples/demo.jpg" src="examples/demo.mp4"></video>
-        <p class="hint">36 seconds, sound on: one song from idea to video, then a GIF loop from a sentence. Music: “Afterglow”.</p>
-    </section>
-
-    <section class="showcase" aria-label="Made with these tools">
-        <div class="show-grid">
-            <a class="show" href="kinetix.html">
-                <video muted loop playsinline preload="none" poster="examples/kinetix.jpg" data-src="examples/kinetix.mp4"></video>
-                <span><b>KINETIX</b> auto-directed to the song: an 8-bit build, then the drop</span>
-            </a>
-            <a class="show" href="spectrum.html">
-                <video muted loop playsinline preload="none" poster="examples/spectrum.jpg" data-src="examples/spectrum.mp4"></video>
-                <span><b>Spectrum</b> bars and particles under your name</span>
-            </a>
-            <a class="show" href="aetherflux.html">
-                <video muted loop playsinline preload="none" poster="examples/aetherflux.jpg" data-src="examples/aetherflux.mp4"></video>
-                <span><b>AetherFlux</b> a particle galaxy around your title</span>
-            </a>
-        </div>
-        <div class="loop-grid">
-            <a class="show" href="loopforge.html"><video muted loop playsinline preload="none" poster="examples/loop-jellyfish.jpg" data-src="examples/loop-jellyfish.mp4"></video><span><b>AI loop</b> “a neon jellyfish pulsing in a dark ocean”</span></a>
-            <a class="show" href="loopforge.html"><video muted loop playsinline preload="none" poster="examples/loop-astral.jpg" data-src="examples/loop-astral.mp4"></video><span><b>GIF loop</b> Astral Quantum</span></a>
-            <a class="show" href="loopforge.html"><video muted loop playsinline preload="none" poster="examples/loop-neon-city.jpg" data-src="examples/loop-neon-city.mp4"></video><span><b>GIF loop</b> Neon City</span></a>
-            <a class="show" href="loopforge.html"><video muted loop playsinline preload="none" poster="examples/loop-clockwork.jpg" data-src="examples/loop-clockwork.mp4"></video><span><b>GIF loop</b> Chrono Gear</span></a>
-        </div>
-        <p class="hint">Real exports from these tools, shown without sound. Your own audio never leaves your computer.</p>
+        <p class="hero-alt"><a href="#visualisers">Already have a track? Pick a visualiser →</a> <span>Free, no sign-up</span></p>
     </section>
 
     <ol class="steps" id="steps" aria-label="From idea to video">
@@ -230,7 +202,36 @@
         <div id="history" class="history-list"></div>
     </section>
 
-    <section class="visualisers">
+    <section class="demo" aria-label="Demo video">
+        <video id="demo-video" controls playsinline preload="none" poster="examples/demo.jpg" src="examples/demo.mp4"></video>
+        <p class="hint">36 seconds, sound on: one song from idea to video, then a GIF loop from a sentence. Music: “Afterglow”.</p>
+    </section>
+
+    <section class="showcase" aria-label="Made with these tools">
+        <div class="show-grid">
+            <a class="show" href="kinetix.html">
+                <video muted loop playsinline preload="none" poster="examples/kinetix.jpg" data-src="examples/kinetix.mp4"></video>
+                <span><b>KINETIX</b> auto-directed to the song: an 8-bit build, then the drop</span>
+            </a>
+            <a class="show" href="spectrum.html">
+                <video muted loop playsinline preload="none" poster="examples/spectrum.jpg" data-src="examples/spectrum.mp4"></video>
+                <span><b>Spectrum</b> bars and particles under your name</span>
+            </a>
+            <a class="show" href="aetherflux.html">
+                <video muted loop playsinline preload="none" poster="examples/aetherflux.jpg" data-src="examples/aetherflux.mp4"></video>
+                <span><b>AetherFlux</b> a particle galaxy around your title</span>
+            </a>
+        </div>
+        <div class="loop-grid">
+            <a class="show" href="loopforge.html"><video muted loop playsinline preload="none" poster="examples/loop-jellyfish.jpg" data-src="examples/loop-jellyfish.mp4"></video><span><b>AI loop</b> “a neon jellyfish pulsing in a dark ocean”</span></a>
+            <a class="show" href="loopforge.html"><video muted loop playsinline preload="none" poster="examples/loop-astral.jpg" data-src="examples/loop-astral.mp4"></video><span><b>GIF loop</b> Astral Quantum</span></a>
+            <a class="show" href="loopforge.html"><video muted loop playsinline preload="none" poster="examples/loop-neon-city.jpg" data-src="examples/loop-neon-city.mp4"></video><span><b>GIF loop</b> Neon City</span></a>
+            <a class="show" href="loopforge.html"><video muted loop playsinline preload="none" poster="examples/loop-clockwork.jpg" data-src="examples/loop-clockwork.mp4"></video><span><b>GIF loop</b> Chrono Gear</span></a>
+        </div>
+        <p class="hint">Real exports from these tools, shown without sound. Your own audio never leaves your computer.</p>
+    </section>
+
+    <section class="visualisers" id="visualisers">
         <h2>Already have a track?</h2>
         <p class="lead small">Go straight to the video. Load your song, add backgrounds and your logo, export a full-length MP4.</p>
         <div class="grid two">
@@ -251,12 +252,12 @@
             </a>
             <a class="card vis forge" href="loopforge.html">
                 <div class="preview"><div class="gear"></div><div class="gear two"></div></div>
-                <h3>LOOP//FORGE</h3>
+                <h3>LOOP//FORGE <span class="aka">· GIF loops</span></h3>
                 <p>Seamless looping GIFs from six VFX shaders, for Discord, socials and stream overlays. No track needed.</p>
             </a>
             <a class="card vis chroma" href="chromaflow.html">
                 <div class="preview"><div class="stroke"></div><div class="stroke two"></div><div class="stroke three"></div></div>
-                <h3>ChromaFlow</h3>
+                <h3>ChromaFlow <span class="aka">· Cover reveal</span></h3>
                 <p>Your cover art paints itself to the music and snaps into focus on the drop. Short clips for TikTok, Reels and Shorts.</p>
             </a>
         </div>
@@ -272,13 +273,14 @@
                 <ul>
                     <li>Spectrum, AetherFlux and KINETIX, with the auto-director</li>
                     <li>Full-length 1080p MP4s, plus 9:16 for Shorts</li>
-                    <li>Seamless GIF loops from six presets</li>
+                    <li>ChromaFlow cover reveals: your artwork paints itself to the drop</li>
+                    <li>LOOP//FORGE: seamless GIF loops and Spotify Canvas videos from six presets</li>
                     <li>Everything renders in your browser; nothing is uploaded</li>
                 </ul>
             </div>
             <div class="card tier pro-tier">
                 <h3>Pro</h3>
-                <p class="price" id="pro-price"></p>
+                <p class="price" id="pro-price">$9 / month</p>
                 <ul>
                     <li>Song Studio: Suno-ready style prompts, lyrics, a video plan and a YouTube kit for every idea</li>
                     <li>AI loops: describe any GIF loop and get it in about 15 seconds</li>
@@ -286,6 +288,7 @@
                 </ul>
                 <a class="primary as-button" id="pro-buy" href="#pro" rel="noopener">Get Pro</a>
                 <p class="hint" id="pro-note">After paying you'll get your access code by email, usually within a day. Enter it once in this browser.</p>
+                <p class="hint"><button type="button" class="link" id="pro-unlock">Already have a code? Unlock</button> <span id="pro-unlocked" role="status"></span></p>
             </div>
         </div>
     </section>

@@ -61,9 +61,9 @@
     }
 
     // Shows the dialog and resolves with the code, or null if cancelled.
-    function ask(feature, error = '') {
+    function ask(feature, error = '', why = `${feature} is part of Pro. Enter your access code to use it; this browser will remember it.`) {
         if (!dialog) build();
-        dialog.querySelector('.why').textContent = `${feature} is part of Pro. Enter your access code to use it; this browser will remember it.`;
+        dialog.querySelector('.why').textContent = why;
         dialog.querySelector('.err').textContent = error;
         const input = dialog.querySelector('input');
         input.value = '';
@@ -89,5 +89,18 @@
         return { res, data };
     }
 
-    window.AccessCode = { request, ask, get };
+    // Entering a code up front (the home page's "Already have a code?"): asks, checks it with check(code), which
+    // resolves to the server's response (401 means wrong), and remembers it. Resolves true once unlocked, false if
+    // cancelled.
+    async function unlock(check) {
+        let error = '';
+        for (;;) {
+            const code = await ask('Pro', error, 'Enter your Pro access code. This browser will remember it.');
+            if (code === null) return false;
+            if ((await check(code)).status !== 401) { set(code); return true; }
+            error = "That code isn't right. Check it and try again.";
+        }
+    }
+
+    window.AccessCode = { request, ask, unlock, get };
 })();
