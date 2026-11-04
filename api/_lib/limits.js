@@ -15,9 +15,17 @@
 const TTL = 60 * 60 * 26;   // a day's counter outlives its day, whatever the time zone
 const memory = new Map();   // key -> {count, expires}
 
-function visitor(request) {
+// The visitor's IP, from the header the platform itself sets, never one a visitor could send: Vercel overwrites
+// x-real-ip and x-forwarded-for but passes cf-connecting-ip through untouched, so trusting that header there would let
+// anyone send a new made-up value with each request and get a fresh daily quota every time. Cloudflare sets
+// cf-connecting-ip itself.
+function visitor(request, env) {
     const h = request.headers;
-    return h.get('cf-connecting-ip') || h.get('x-real-ip') || (h.get('x-forwarded-for') || '').split(',')[0].trim() || 'unknown';
+    const forwarded = (h.get('x-forwarded-for') || '').split(',')[0].trim();
+    const ip = env.VERCEL
+        ? h.get('x-real-ip') || forwarded
+        : h.get('cf-connecting-ip') || h.get('x-real-ip') || forwarded;
+    return ip || 'unknown';
 }
 
 // Adds one to a counter and returns the new count.
@@ -59,7 +67,7 @@ export async function useQuota(request, env, { prefix = 'q', limit = Number(env.
     const pro = env.STUDIO_ACCESS_CODE && request.headers.get('x-studio-code') === env.STUDIO_ACCESS_CODE;
     const cap = pro ? limit * Number(env.PRO_LIMIT_FACTOR || 10) : limit;
     const day = new Date().toISOString().slice(0, 10);
-    const used = await increment(env, `${prefix}:${day}:${visitor(request)}`);
+    const used = await increment(env, `${prefix}:${day}:${visitor(request, env)}`);
     if (used > cap) return { limit: cap, left: -1 };
     if (env.AI_DAILY_LIMIT) {
         const all = await increment(env, `all:${day}`);
