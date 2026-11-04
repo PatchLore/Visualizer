@@ -8,7 +8,7 @@ Describe the music you imagine, get a Suno-ready package, then turn the finished
   image prompts tied to the lyrics), a YouTube kit and notes explaining the choices. Any result can be rewritten
   with a chip or a sentence. Written by Claude; the engine is `api/_lib/compose.js`.
 - **Visualisers** that run entirely in the browser and export MP4s. Audio and images stay on the
-  user's computer. "Make the video" in the Studio opens the right one with the title, artist and colour set.
+  user's computer, except that lyric sync sends a small compressed copy of the track to Groq (see Lyric sync). "Make the video" in the Studio opens the right one with the title, artist and colour set.
   - **AetherFlux** (`aetherflux.html`): a 3D particle galaxy (three.js) that morphs between seven shapes, a
     beat-reactive centre with a logo, a classic spectrum, and a scene timeline.
   - **Spectrum** (`spectrum.html`, formerly Monstercat; `monstercat.html` redirects): classic label-style spectrum bars, bass-driven particles, logo and

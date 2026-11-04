@@ -275,10 +275,10 @@
         container.innerHTML = `
             <div class="lyr">
                 <textarea aria-label="Lyrics" placeholder="Paste the lyrics. [Section] headers are fine."></textarea>
-                <div class="lyr-row"><button type="button" class="lyr-sync">Sync to the vocal</button><button type="button" class="lyr-lrc" title="Use timed lyrics from an .lrc file">Import .lrc</button><input type="file" class="lyr-lrc-file" accept=".lrc,text/plain" hidden><label class="lyr-row"><input type="checkbox" class="lyr-show" checked> Show in the video</label></div>
+                <div class="lyr-row"><button type="button" class="lyr-sync" title="Sends a small compressed copy of the track to Groq's speech recognition to time the words">Sync to the vocal</button><button type="button" class="lyr-lrc" title="Use timed lyrics from an .lrc file">Import .lrc</button><input type="file" class="lyr-lrc-file" accept=".lrc,text/plain" hidden><label class="lyr-row"><input type="checkbox" class="lyr-show" checked> Show in the video</label></div>
                 <div class="lyr-status"></div>
                 <div class="lyr-list"></div>
-                <div class="lyr-hint">Already have timed lyrics? Import or paste an .lrc file: it's used as it is, with no sync needed. Click a time to play from that line; − and + move a line 0.1 s. Lines in amber had words the timing missed.</div>
+                <div class="lyr-hint">Sync to the vocal sends a small compressed copy of the track to Groq's speech recognition to time the words; nothing else leaves your computer. Already have timed lyrics? Import or paste an .lrc file: it's used as it is, with no sync needed. Click a time to play from that line; − and + move a line 0.1 s. Lines in amber had words the timing missed.</div>
             </div>`;
         const $ = s => container.querySelector(s);
         const ta = $('textarea'), list = $('.lyr-list'), status = $('.lyr-status'), show = $('.lyr-show'), btn = $('.lyr-sync');
